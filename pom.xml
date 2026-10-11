@@ -26,6 +26,8 @@
         <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <!-- El Quality Gate se ve en SonarCloud y en el PR; no hace fallar el build -->
         <sonar.qualitygate.wait>false</sonar.qualitygate.wait>
+        <!-- La clase main no tiene lógica para testear -->
+        <sonar.coverage.exclusions>**/*Application.java</sonar.coverage.exclusions>
     </properties>
 
     <dependencies>
