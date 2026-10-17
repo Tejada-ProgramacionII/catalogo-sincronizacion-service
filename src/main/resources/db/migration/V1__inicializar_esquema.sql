@@ -1,0 +1,9 @@
+-- V1: punto de partida del esquema del servicio de catálogo y sincronización.
+--
+-- Esta migración no crea tablas: deja registrada la versión inicial en
+-- flyway_schema_history para que Flyway administre el esquema desde el comienzo.
+-- Las tablas del catálogo local (categorías, profesionales, horarios semanales
+-- y versión aplicada) se agregan en migraciones nuevas (V2, V3, ...) en la
+-- Etapa 1 - Modelo local del catálogo.
+--
+-- Regla: una migración ya aplicada no se modifica; cada cambio va en un archivo nuevo.
