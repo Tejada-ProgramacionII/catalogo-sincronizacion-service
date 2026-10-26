@@ -37,4 +37,9 @@ public class JpaCategoriaRepositoryAdapter implements CategoriaRepository {
                 .map(categoriaMapper::toDomainModel)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void deleteAll() {
+        jpaCategoriaRepository.deleteAllInBatch();
+    }
 }

@@ -100,4 +100,11 @@ class JpaHorarioSemanalRepositoryAdapterTest {
 
         assertThat(horarios).extracting(HorarioSemanal::getId).containsExactly(21L, 22L);
     }
+
+    @Test
+    void deleteAllBorraTodoEnUnaSolaSentencia() {
+        adapter.deleteAll();
+
+        verify(jpaHorarioSemanalRepository).deleteAllInBatch();
+    }
 }

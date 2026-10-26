@@ -37,4 +37,9 @@ public class JpaProfesionalRepositoryAdapter implements ProfesionalRepository {
                 .map(profesionalMapper::toDomainModel)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void deleteAll() {
+        jpaProfesionalRepository.deleteAllInBatch();
+    }
 }

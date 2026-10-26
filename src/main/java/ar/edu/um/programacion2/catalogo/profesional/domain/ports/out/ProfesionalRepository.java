@@ -11,4 +11,6 @@ public interface ProfesionalRepository {
     Optional<Profesional> findById(Long id);
 
     List<Profesional> findAll();
+
+    void deleteAll();
 }
