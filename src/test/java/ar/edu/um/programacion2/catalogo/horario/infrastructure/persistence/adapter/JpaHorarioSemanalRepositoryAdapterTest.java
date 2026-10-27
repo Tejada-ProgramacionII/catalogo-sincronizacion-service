@@ -102,6 +102,17 @@ class JpaHorarioSemanalRepositoryAdapterTest {
     }
 
     @Test
+    void findHabilitadosByProfesionalIdDevuelveLosHorariosHabilitadosDelProfesional() {
+        when(jpaHorarioSemanalRepository.findByProfesionalIdAndHabilitadoTrue(10L))
+                .thenReturn(List.of(entidad(100L, "MONDAY")));
+
+        List<HorarioSemanal> horarios = adapter.findHabilitadosByProfesionalId(10L);
+
+        assertThat(horarios).extracting(HorarioSemanal::getId).containsExactly(100L);
+        assertThat(horarios.get(0).getDiaSemana()).isEqualTo(DayOfWeek.MONDAY);
+    }
+
+    @Test
     void deleteAllBorraTodoEnUnaSolaSentencia() {
         adapter.deleteAll();
 
