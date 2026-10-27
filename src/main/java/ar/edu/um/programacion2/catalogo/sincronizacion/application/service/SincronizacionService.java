@@ -11,7 +11,9 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.Cat
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.ConsultarEstadoSincronizacionUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
@@ -34,6 +36,11 @@ public class SincronizacionService {
     private final SincronizacionProperties sincronizacionProperties;
     private final VersionAplicadaRepository versionAplicadaRepository;
     private final IntentoSincronizacionRepository intentoSincronizacionRepository;
+    private final ConsultarEstadoSincronizacionUseCase consultarEstadoSincronizacionUseCase;
+
+    public ResumenSincronizacion consultarEstado() {
+        return consultarEstadoSincronizacionUseCase.consultarEstado();
+    }
 
     public void sincronizarSiNoHayCopia() {
         Optional<VersionAplicada> actual = versionAplicadaRepository.find();

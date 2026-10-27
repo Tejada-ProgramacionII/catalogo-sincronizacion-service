@@ -27,8 +27,11 @@ import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.EstadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.ConsultarEstadoSincronizacionUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
@@ -49,6 +52,9 @@ class SincronizacionServiceTest {
     @Mock
     private IntentoSincronizacionRepository intentoSincronizacionRepository;
 
+    @Mock
+    private ConsultarEstadoSincronizacionUseCase consultarEstadoSincronizacionUseCase;
+
     private SincronizacionProperties sincronizacionProperties;
 
     private SincronizacionService service;
@@ -62,7 +68,7 @@ class SincronizacionServiceTest {
         sincronizacionProperties.setMaxIntentos(3);
         sincronizacionProperties.setEsperaEntreIntentos(Duration.ZERO);
         service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizacionProperties,
-                versionAplicadaRepository, intentoSincronizacionRepository);
+                versionAplicadaRepository, intentoSincronizacionRepository, consultarEstadoSincronizacionUseCase);
         when(intentoSincronizacionRepository.save(any())).thenAnswer(invocacion -> {
             IntentoSincronizacion intento = invocacion.getArgument(0);
             guardados.add(copia(intento));
@@ -205,6 +211,14 @@ class SincronizacionServiceTest {
         service.cerrarIntentosInterrumpidos();
 
         assertThat(guardados).isEmpty();
+    }
+
+    @Test
+    void consultarEstadoDelegaEnElCasoDeUso() {
+        ResumenSincronizacion resumen = ResumenSincronizacion.builder().estado(EstadoSincronizacion.AL_DIA).build();
+        when(consultarEstadoSincronizacionUseCase.consultarEstado()).thenReturn(resumen);
+
+        assertThat(service.consultarEstado()).isSameAs(resumen);
     }
 
     private IntentoSincronizacion ultimoGuardado() {
