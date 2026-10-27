@@ -1,9 +1,11 @@
 package ar.edu.um.programacion2.catalogo.profesional.application.usecases;
 
+import java.util.Comparator;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
+import ar.edu.um.programacion2.catalogo.horario.domain.model.HorarioSemanal;
 import ar.edu.um.programacion2.catalogo.horario.domain.ports.out.HorarioSemanalRepository;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.AgendaProfesional;
 import ar.edu.um.programacion2.catalogo.profesional.domain.ports.in.ConsultarProfesionalUseCase;
@@ -17,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ConsultarProfesionalUseCaseImpl implements ConsultarProfesionalUseCase {
 
+    private static final Comparator<HorarioSemanal> POR_DIA_Y_HORA_DE_INICIO =
+            Comparator.comparing(HorarioSemanal::getDiaSemana).thenComparing(HorarioSemanal::getHoraInicio);
+
     private final ProfesionalRepository profesionalRepository;
     private final HorarioSemanalRepository horarioSemanalRepository;
     private final VersionAplicadaRepository versionAplicadaRepository;
@@ -29,7 +34,9 @@ public class ConsultarProfesionalUseCaseImpl implements ConsultarProfesionalUseC
         return profesionalRepository.findById(id)
                 .map(profesional -> AgendaProfesional.builder()
                         .profesional(profesional)
-                        .horarios(horarioSemanalRepository.findHabilitadosByProfesionalId(id))
+                        .horarios(horarioSemanalRepository.findHabilitadosByProfesionalId(id).stream()
+                                .sorted(POR_DIA_Y_HORA_DE_INICIO)
+                                .toList())
                         .versionCatalogo(version.getVersion())
                         .build());
     }

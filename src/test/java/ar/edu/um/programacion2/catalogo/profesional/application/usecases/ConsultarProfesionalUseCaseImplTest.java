@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,6 +46,11 @@ class ConsultarProfesionalUseCaseImplTest {
                 .thenReturn(Optional.of(VersionAplicada.builder().version(version).aplicadaEn(Instant.now()).build()));
     }
 
+    private static HorarioSemanal horario(Long id, DayOfWeek dia, int hora, int minuto) {
+        return HorarioSemanal.builder().id(id).profesionalId(10L).diaSemana(dia)
+                .horaInicio(LocalTime.of(hora, minuto)).build();
+    }
+
     @Test
     void devuelveElProfesionalConSusHorariosHabilitadosYLaVersion() {
         conVersionAplicada(7L);
@@ -60,6 +66,22 @@ class ConsultarProfesionalUseCaseImplTest {
             assertThat(a.getHorarios()).containsExactly(lunes);
             assertThat(a.getVersionCatalogo()).isEqualTo(7L);
         });
+    }
+
+    @Test
+    void ordenaLosHorariosPorDiaYHoraDeInicio() {
+        conVersionAplicada(7L);
+        when(profesionalRepository.findById(10L)).thenReturn(Optional.of(Profesional.builder().id(10L).build()));
+        when(horarioSemanalRepository.findHabilitadosByProfesionalId(10L)).thenReturn(List.of(
+                horario(1L, DayOfWeek.THURSDAY, 18, 0),
+                horario(2L, DayOfWeek.TUESDAY, 11, 30),
+                horario(3L, DayOfWeek.MONDAY, 14, 0),
+                horario(4L, DayOfWeek.TUESDAY, 9, 0)));
+
+        assertThat(useCase.consultarProfesional(10L))
+                .hasValueSatisfying(a -> assertThat(a.getHorarios())
+                        .extracting(HorarioSemanal::getId)
+                        .containsExactly(3L, 4L, 2L, 1L));
     }
 
     @Test
