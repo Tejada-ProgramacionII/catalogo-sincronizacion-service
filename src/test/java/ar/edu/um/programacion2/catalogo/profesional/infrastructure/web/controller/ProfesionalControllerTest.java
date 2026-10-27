@@ -11,7 +11,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,8 +25,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import ar.edu.um.programacion2.catalogo.horario.domain.model.HorarioSemanal;
 import ar.edu.um.programacion2.catalogo.profesional.application.exception.FiltroBusquedaInvalidoException;
+import ar.edu.um.programacion2.catalogo.profesional.application.exception.ProfesionalNoEncontradoException;
 import ar.edu.um.programacion2.catalogo.profesional.application.service.ProfesionalService;
+import ar.edu.um.programacion2.catalogo.profesional.domain.model.AgendaProfesional;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.FiltroBusquedaProfesionales;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.Pagina;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.Profesional;
@@ -123,5 +128,44 @@ class ProfesionalControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(profesionalService);
+    }
+
+    @Test
+    void consultarProfesionalDevuelveSusDatosHorariosYVersion() throws Exception {
+        when(profesionalService.consultarProfesional(15L)).thenReturn(AgendaProfesional.builder()
+                .profesional(Profesional.builder()
+                        .id(15L).categoriaId(1L).nombre("Ana").apellido("Gomez").habilitado(true).build())
+                .horarios(List.of(HorarioSemanal.builder()
+                        .diaSemana(DayOfWeek.MONDAY).horaInicio(LocalTime.of(9, 0)).horaFin(LocalTime.of(12, 0))
+                        .duracionTurnoMinutos(30).build()))
+                .versionCatalogo(7L)
+                .build());
+
+        mockMvc.perform(get(URL + "/15"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(15))
+                .andExpect(jsonPath("$.apellido").value("Gomez"))
+                .andExpect(jsonPath("$.habilitado").value(true))
+                .andExpect(jsonPath("$.horarios[0].diaSemana").value("MONDAY"))
+                .andExpect(jsonPath("$.horarios[0].duracionTurnoMinutos").value(30))
+                .andExpect(jsonPath("$.versionCatalogo").value(7));
+    }
+
+    @Test
+    void consultarUnProfesionalInexistenteResponde404() throws Exception {
+        when(profesionalService.consultarProfesional(99L)).thenThrow(new ProfesionalNoEncontradoException(99L));
+
+        mockMvc.perform(get(URL + "/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("No existe el profesional 99"));
+    }
+
+    @Test
+    void consultarSinCatalogoResponde503() throws Exception {
+        when(profesionalService.consultarProfesional(15L)).thenThrow(new CatalogoNoDisponibleException());
+
+        mockMvc.perform(get(URL + "/15"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503));
     }
 }
