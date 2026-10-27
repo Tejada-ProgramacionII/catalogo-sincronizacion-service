@@ -39,6 +39,13 @@ public class JpaHorarioSemanalRepositoryAdapter implements HorarioSemanalReposit
     }
 
     @Override
+    public List<HorarioSemanal> findHabilitadosByProfesionalId(Long profesionalId) {
+        return jpaHorarioSemanalRepository.findByProfesionalIdAndHabilitadoTrue(profesionalId).stream()
+                .map(horarioSemanalMapper::toDomainModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void deleteAll() {
         jpaHorarioSemanalRepository.deleteAllInBatch();
     }

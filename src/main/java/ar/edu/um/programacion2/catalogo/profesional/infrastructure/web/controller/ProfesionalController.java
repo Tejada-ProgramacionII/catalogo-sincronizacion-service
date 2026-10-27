@@ -7,11 +7,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ar.edu.um.programacion2.catalogo.profesional.application.exception.FiltroBusquedaInvalidoException;
+import ar.edu.um.programacion2.catalogo.profesional.application.exception.ProfesionalNoEncontradoException;
 import ar.edu.um.programacion2.catalogo.profesional.application.service.ProfesionalService;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.FiltroBusquedaProfesionales;
 import ar.edu.um.programacion2.catalogo.profesional.infrastructure.web.mapper.ProfesionalDtoMapper;
@@ -43,6 +45,19 @@ public class ProfesionalController {
         } catch (FiltroBusquedaInvalidoException e) {
             return ResponseEntity.badRequest()
                     .body(ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage()));
+        } catch (CatalogoNoDisponibleException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Object> consultarProfesional(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(profesionalDtoMapper.toAgendaResponse(profesionalService.consultarProfesional(id)));
+        } catch (ProfesionalNoEncontradoException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage()));
         } catch (CatalogoNoDisponibleException e) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage()));
