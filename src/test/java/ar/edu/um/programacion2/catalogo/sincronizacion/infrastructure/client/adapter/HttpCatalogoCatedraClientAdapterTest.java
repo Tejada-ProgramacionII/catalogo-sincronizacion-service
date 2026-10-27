@@ -1,19 +1,25 @@
 package ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
@@ -22,10 +28,14 @@ import com.sun.net.httpserver.HttpServer;
 
 import ar.edu.um.programacion2.catalogo.config.CatedraClientConfig;
 import ar.edu.um.programacion2.catalogo.config.CatedraProperties;
+import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.SnapshotCatalogo;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.mapper.SnapshotCatalogoClientMapper;
 
 class HttpCatalogoCatedraClientAdapterTest {
+
+    private static final String JWT = "jwt-de-prueba";
 
     // Ejemplo de la sección 7 del contrato, con una hora sin segundos y campos que no conocemos.
     private static final String SNAPSHOT_JSON = """
@@ -72,8 +82,8 @@ class HttpCatalogoCatedraClientAdapterTest {
             """;
 
     private final AtomicReference<String> pathRecibido = new AtomicReference<>();
+    private final AtomicInteger statusRespuesta = new AtomicInteger(200);
     private HttpServer servidor;
-    private HttpCatalogoCatedraClientAdapter adapter;
 
     @BeforeEach
     void levantarServidor() throws IOException {
@@ -82,18 +92,12 @@ class HttpCatalogoCatedraClientAdapterTest {
             pathRecibido.set(exchange.getRequestURI().getPath());
             byte[] cuerpo = SNAPSHOT_JSON.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-            exchange.sendResponseHeaders(200, cuerpo.length);
+            exchange.sendResponseHeaders(statusRespuesta.get(), cuerpo.length);
             try (OutputStream salida = exchange.getResponseBody()) {
                 salida.write(cuerpo);
             }
         });
         servidor.start();
-
-        CatedraProperties properties = new CatedraProperties();
-        properties.setBaseUrl("http://localhost:" + servidor.getAddress().getPort());
-        properties.setJwt("jwt-de-prueba");
-        RestClient restClient = new CatedraClientConfig().catedraRestClient(RestClient.builder(), properties);
-        adapter = new HttpCatalogoCatedraClientAdapter(restClient, new SnapshotCatalogoClientMapper());
     }
 
     @AfterEach
@@ -103,7 +107,7 @@ class HttpCatalogoCatedraClientAdapterTest {
 
     @Test
     void getSnapshotPideElSnapshotYLoTraduceAlDominio() {
-        SnapshotCatalogo snapshot = adapter.getSnapshot();
+        SnapshotCatalogo snapshot = crearAdapter(servidor.getAddress().getPort(), Duration.ofSeconds(5)).getSnapshot();
 
         assertThat(pathRecibido.get()).isEqualTo("/api/synchronization/snapshot");
         assertThat(snapshot.getVersion()).isEqualTo(7L);
@@ -117,5 +121,63 @@ class HttpCatalogoCatedraClientAdapterTest {
             assertThat(horario.getHoraInicio()).isEqualTo(LocalTime.of(9, 0));
             assertThat(horario.getHoraFin()).isEqualTo(LocalTime.of(12, 0));
         });
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 404})
+    void getSnapshotLanzaRechazoSiLaCatedraRespondeUn4xx(int status) {
+        statusRespuesta.set(status);
+        HttpCatalogoCatedraClientAdapter adapter = crearAdapter(servidor.getAddress().getPort(), Duration.ofSeconds(5));
+
+        assertThatThrownBy(adapter::getSnapshot)
+                .isInstanceOf(CatedraRechazoException.class)
+                .hasMessageContaining("HTTP " + status)
+                .hasMessageNotContaining(JWT);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {500, 503})
+    void getSnapshotLanzaNoDisponibleSiLaCatedraRespondeUn5xx(int status) {
+        statusRespuesta.set(status);
+        HttpCatalogoCatedraClientAdapter adapter = crearAdapter(servidor.getAddress().getPort(), Duration.ofSeconds(5));
+
+        assertThatThrownBy(adapter::getSnapshot)
+                .isInstanceOf(CatedraNoDisponibleException.class)
+                .hasMessageContaining("HTTP " + status)
+                .hasMessageNotContaining(JWT);
+    }
+
+    @Test
+    void getSnapshotLanzaNoDisponibleSiNoHayNadieEscuchando() throws IOException {
+        int puertoLibre;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            puertoLibre = socket.getLocalPort();
+        }
+        HttpCatalogoCatedraClientAdapter adapter = crearAdapter(puertoLibre, Duration.ofSeconds(5));
+
+        assertThatThrownBy(adapter::getSnapshot)
+                .isInstanceOf(CatedraNoDisponibleException.class)
+                .hasMessageNotContaining(JWT);
+    }
+
+    @Test
+    void getSnapshotLanzaNoDisponibleSiLaCatedraNoRespondeATiempo() throws IOException {
+        // Acepta la conexión pero nunca responde: la lectura corta por timeout.
+        try (ServerSocket servidorMudo = new ServerSocket(0)) {
+            HttpCatalogoCatedraClientAdapter adapter = crearAdapter(servidorMudo.getLocalPort(), Duration.ofMillis(200));
+
+            assertThatThrownBy(adapter::getSnapshot)
+                    .isInstanceOf(CatedraNoDisponibleException.class)
+                    .hasMessageNotContaining(JWT);
+        }
+    }
+
+    private HttpCatalogoCatedraClientAdapter crearAdapter(int puerto, Duration readTimeout) {
+        CatedraProperties properties = new CatedraProperties();
+        properties.setBaseUrl("http://localhost:" + puerto);
+        properties.setJwt(JWT);
+        properties.setReadTimeout(readTimeout);
+        RestClient restClient = new CatedraClientConfig().catedraRestClient(RestClient.builder(), properties);
+        return new HttpCatalogoCatedraClientAdapter(restClient, new SnapshotCatalogoClientMapper());
     }
 }
