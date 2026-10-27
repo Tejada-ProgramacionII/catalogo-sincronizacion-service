@@ -55,7 +55,7 @@ public class SincronizacionService {
         List<IntentoSincronizacion> abiertos = intentoSincronizacionRepository.findAbiertos();
         abiertos.forEach(intento -> cerrar(intento, ResultadoSincronizacion.ERROR, null, MENSAJE_REINICIO));
         if (!abiertos.isEmpty()) {
-            log.warn("Se cerraron {} sincronizaciones interrumpidas por un reinicio", abiertos.size());
+            log.warn("Sincronizaciones interrumpidas por un reinicio cerradas como error: {}", abiertos.size());
         }
     }
 
