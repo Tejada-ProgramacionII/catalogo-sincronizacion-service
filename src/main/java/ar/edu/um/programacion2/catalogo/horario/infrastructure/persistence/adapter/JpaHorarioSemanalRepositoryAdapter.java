@@ -37,4 +37,9 @@ public class JpaHorarioSemanalRepositoryAdapter implements HorarioSemanalReposit
                 .map(horarioSemanalMapper::toDomainModel)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void deleteAll() {
+        jpaHorarioSemanalRepository.deleteAllInBatch();
+    }
 }
