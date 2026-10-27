@@ -30,6 +30,9 @@ public class HttpCatalogoCatedraClientAdapter implements CatalogoCatedraClient {
                     .uri(SNAPSHOT_PATH)
                     .retrieve()
                     .body(SnapshotCatalogoResponse.class);
+            if (response == null) {
+                throw new CatedraNoDisponibleException("La cátedra respondió sin cuerpo");
+            }
             return snapshotCatalogoClientMapper.toDomainModel(response);
         } catch (HttpClientErrorException e) {
             throw new CatedraRechazoException(
