@@ -83,6 +83,7 @@ class HttpCatalogoCatedraClientAdapterTest {
 
     private final AtomicReference<String> pathRecibido = new AtomicReference<>();
     private final AtomicInteger statusRespuesta = new AtomicInteger(200);
+    private final AtomicReference<String> cuerpoRespuesta = new AtomicReference<>(SNAPSHOT_JSON);
     private HttpServer servidor;
 
     @BeforeEach
@@ -90,9 +91,10 @@ class HttpCatalogoCatedraClientAdapterTest {
         servidor = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         servidor.createContext("/", exchange -> {
             pathRecibido.set(exchange.getRequestURI().getPath());
-            byte[] cuerpo = SNAPSHOT_JSON.getBytes(StandardCharsets.UTF_8);
+            byte[] cuerpo = cuerpoRespuesta.get().getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-            exchange.sendResponseHeaders(statusRespuesta.get(), cuerpo.length);
+            // -1 le indica al HttpServer que la respuesta no tiene cuerpo.
+            exchange.sendResponseHeaders(statusRespuesta.get(), cuerpo.length == 0 ? -1 : cuerpo.length);
             try (OutputStream salida = exchange.getResponseBody()) {
                 salida.write(cuerpo);
             }
@@ -145,6 +147,16 @@ class HttpCatalogoCatedraClientAdapterTest {
                 .isInstanceOf(CatedraNoDisponibleException.class)
                 .hasMessageContaining("HTTP " + status)
                 .hasMessageNotContaining(JWT);
+    }
+
+    @Test
+    void getSnapshotLanzaNoDisponibleSiLaCatedraRespondeSinCuerpo() {
+        cuerpoRespuesta.set("");
+        HttpCatalogoCatedraClientAdapter adapter = crearAdapter(servidor.getAddress().getPort(), Duration.ofSeconds(5));
+
+        assertThatThrownBy(adapter::getSnapshot)
+                .isInstanceOf(CatedraNoDisponibleException.class)
+                .hasMessage("La cátedra respondió sin cuerpo");
     }
 
     @Test
