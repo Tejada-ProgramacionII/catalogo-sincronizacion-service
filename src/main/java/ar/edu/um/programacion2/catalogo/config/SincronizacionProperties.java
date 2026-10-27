@@ -19,4 +19,6 @@ public class SincronizacionProperties {
     private int maxIntentos = 3;
 
     private Duration esperaEntreIntentos = Duration.ofSeconds(5);
+
+    private boolean alArrancar = true;
 }
