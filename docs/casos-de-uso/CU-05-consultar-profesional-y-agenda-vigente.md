@@ -42,7 +42,7 @@
 - Este es el único medio por el que turnos obtiene datos del catálogo: no accede a su base de datos ni guarda una réplica propia del catálogo (enunciado 3).
 - Si el catálogo no responde, turnos no puede iniciar operaciones que requieran validar información vigente (enunciado 8). Esa reacción se documenta en los casos de uso de turnos.
 - Turnos puede conservar en una reserva datos descriptivos del profesional como historial, pero no usarlos como catálogo vigente (enunciado 4.2).
-- **PENDIENTE (Etapa de seguridad):** si la consulta lleva el JWT del usuario o un JWT técnico entre servicios.
+- La consulta lleva el JWT del usuario, que turnos propaga y el catálogo valida (D-12). Sin token válido, el catálogo responde 401.
 
 ## Fuentes
 
