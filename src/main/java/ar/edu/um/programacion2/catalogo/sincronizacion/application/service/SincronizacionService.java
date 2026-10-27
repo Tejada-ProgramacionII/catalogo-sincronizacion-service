@@ -9,6 +9,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.Cat
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +20,16 @@ public class SincronizacionService {
 
     private final SincronizarCatalogoCompletoUseCase sincronizarCatalogoCompletoUseCase;
     private final SincronizacionProperties sincronizacionProperties;
+    private final VersionAplicadaRepository versionAplicadaRepository;
+
+    public void sincronizarSiNoHayCopia() {
+        Optional<VersionAplicada> actual = versionAplicadaRepository.find();
+        if (actual.isPresent()) {
+            log.info("Ya hay una copia local (versión {}): no se sincroniza", actual.get().getVersion());
+            return;
+        }
+        sincronizar();
+    }
 
     public Optional<VersionAplicada> sincronizar() {
         int maxIntentos = sincronizacionProperties.getMaxIntentos();
