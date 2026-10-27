@@ -1,6 +1,7 @@
 package ar.edu.um.programacion2.catalogo.sincronizacion.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,6 +21,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.Cat
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
 
 @ExtendWith(MockitoExtension.class)
 class SincronizacionServiceTest {
@@ -30,6 +32,9 @@ class SincronizacionServiceTest {
     @Mock
     private SincronizarCatalogoCompletoUseCase sincronizarCatalogoCompletoUseCase;
 
+    @Mock
+    private VersionAplicadaRepository versionAplicadaRepository;
+
     private SincronizacionProperties sincronizacionProperties;
 
     private SincronizacionService service;
@@ -39,7 +44,8 @@ class SincronizacionServiceTest {
         sincronizacionProperties = new SincronizacionProperties();
         sincronizacionProperties.setMaxIntentos(3);
         sincronizacionProperties.setEsperaEntreIntentos(Duration.ZERO);
-        service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizacionProperties);
+        service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizacionProperties,
+                versionAplicadaRepository);
     }
 
     @Test
@@ -88,5 +94,26 @@ class SincronizacionServiceTest {
         assertThat(resultado).isEmpty();
         assertThat(marcaPuesta).isTrue();
         verify(sincronizarCatalogoCompletoUseCase).sincronizar();
+    }
+
+    @Test
+    void sinCopiaLocalSincroniza() {
+        when(versionAplicadaRepository.find()).thenReturn(Optional.empty());
+        when(sincronizarCatalogoCompletoUseCase.sincronizar())
+                .thenReturn(VersionAplicada.builder().version(7L).aplicadaEn(Instant.now()).build());
+
+        service.sincronizarSiNoHayCopia();
+
+        verify(sincronizarCatalogoCompletoUseCase).sincronizar();
+    }
+
+    @Test
+    void conCopiaLocalNoSincroniza() {
+        when(versionAplicadaRepository.find())
+                .thenReturn(Optional.of(VersionAplicada.builder().version(7L).aplicadaEn(Instant.now()).build()));
+
+        service.sincronizarSiNoHayCopia();
+
+        verify(sincronizarCatalogoCompletoUseCase, never()).sincronizar();
     }
 }
