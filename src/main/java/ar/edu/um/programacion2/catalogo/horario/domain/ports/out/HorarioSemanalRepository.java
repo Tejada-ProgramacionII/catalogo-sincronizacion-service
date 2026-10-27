@@ -11,4 +11,6 @@ public interface HorarioSemanalRepository {
     Optional<HorarioSemanal> findById(Long id);
 
     List<HorarioSemanal> findAll();
+
+    List<HorarioSemanal> findHabilitadosByProfesionalId(Long profesionalId);
 }
