@@ -111,4 +111,11 @@ class JpaHorarioSemanalRepositoryAdapterTest {
         assertThat(horarios).extracting(HorarioSemanal::getId).containsExactly(100L);
         assertThat(horarios.get(0).getDiaSemana()).isEqualTo(DayOfWeek.MONDAY);
     }
+
+    @Test
+    void deleteAllBorraTodoEnUnaSolaSentencia() {
+        adapter.deleteAll();
+
+        verify(jpaHorarioSemanalRepository).deleteAllInBatch();
+    }
 }

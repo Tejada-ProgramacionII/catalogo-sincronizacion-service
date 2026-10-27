@@ -94,4 +94,11 @@ class JpaProfesionalRepositoryAdapterTest {
 
         assertThat(profesionales).extracting(Profesional::getId).containsExactly(15L, 16L);
     }
+
+    @Test
+    void deleteAllBorraTodoEnUnaSolaSentencia() {
+        adapter.deleteAll();
+
+        verify(jpaProfesionalRepository).deleteAllInBatch();
+    }
 }

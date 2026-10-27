@@ -14,5 +14,7 @@ public interface ProfesionalRepository {
 
     List<Profesional> findAll();
 
+    void deleteAll();
+
     Pagina<Profesional> search(FiltroBusquedaProfesionales filtro, int numeroPagina, int tamanioPagina);
 }

@@ -13,4 +13,6 @@ public interface HorarioSemanalRepository {
     List<HorarioSemanal> findAll();
 
     List<HorarioSemanal> findHabilitadosByProfesionalId(Long profesionalId);
+
+    void deleteAll();
 }
