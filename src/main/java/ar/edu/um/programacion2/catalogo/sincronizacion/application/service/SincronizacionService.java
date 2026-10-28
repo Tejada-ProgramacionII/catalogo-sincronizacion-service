@@ -13,6 +13,7 @@ import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.DiscontinuidadException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.AvisoCatalogo;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
@@ -22,6 +23,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.Consultar
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoIncrementalUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.VerificarVersionesPendientesUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.AvisoCatalogoRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.UltimaVerificacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
@@ -48,6 +50,7 @@ public class SincronizacionService {
     private final ConsultarEstadoSincronizacionUseCase consultarEstadoSincronizacionUseCase;
     private final VerificarVersionesPendientesUseCase verificarVersionesPendientesUseCase;
     private final UltimaVerificacionRepository ultimaVerificacionRepository;
+    private final AvisoCatalogoRepository avisoCatalogoRepository;
 
     // D-08: una sola sincronización a la vez, sea cual sea el disparador.
     private final ReentrantLock sincronizando = new ReentrantLock();
@@ -68,6 +71,26 @@ public class SincronizacionService {
             } else {
                 // Sin nada que aplicar no se registra un intento: solo cuándo se verificó.
                 ultimaVerificacionRepository.save(Instant.now());
+            }
+        } finally {
+            sincronizando.unlock();
+        }
+    }
+
+    // CU-02, pasos 1 y 2. Espera a la sincronización en curso: el aviso se confirma recién después de aplicar.
+    public void procesarAviso(AvisoCatalogo aviso) {
+        sincronizando.lock();
+        try {
+            if (avisoCatalogoRepository.existsByEventId(aviso.getEventId())) {
+                log.info("Aviso {} repetido: ya se procesó", aviso.getEventId());
+                return;
+            }
+            Optional<VersionAplicada> local = versionAplicadaRepository.find();
+            boolean yaIncorporado = local.isPresent() && aviso.getVersion() <= local.get().getVersion();
+            // Si la incremental falla no se marca: un reenvío del aviso vuelve a intentar (D-05 lo hace inofensivo).
+            if (yaIncorporado || sincronizarIncremental().isPresent()) {
+                aviso.setProcesadoEn(Instant.now());
+                avisoCatalogoRepository.save(aviso);
             }
         } finally {
             sincronizando.unlock();

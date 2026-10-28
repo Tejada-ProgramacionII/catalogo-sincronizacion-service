@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,6 +33,7 @@ import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.DiscontinuidadException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.AvisoCatalogo;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.EstadoSincronizacion;
@@ -42,6 +44,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.Consultar
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoIncrementalUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.VerificarVersionesPendientesUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.AvisoCatalogoRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.UltimaVerificacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
@@ -77,6 +80,9 @@ class SincronizacionServiceTest {
     @Mock
     private UltimaVerificacionRepository ultimaVerificacionRepository;
 
+    @Mock
+    private AvisoCatalogoRepository avisoCatalogoRepository;
+
     private SincronizacionProperties sincronizacionProperties;
 
     private SincronizacionService service;
@@ -92,7 +98,7 @@ class SincronizacionServiceTest {
         service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizarCatalogoIncrementalUseCase,
                 sincronizacionProperties,
                 versionAplicadaRepository, intentoSincronizacionRepository, consultarEstadoSincronizacionUseCase,
-                verificarVersionesPendientesUseCase, ultimaVerificacionRepository);
+                verificarVersionesPendientesUseCase, ultimaVerificacionRepository, avisoCatalogoRepository);
         when(intentoSincronizacionRepository.save(any())).thenAnswer(invocacion -> {
             IntentoSincronizacion intento = invocacion.getArgument(0);
             guardados.add(copia(intento));
@@ -403,6 +409,103 @@ class SincronizacionServiceTest {
         assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.RECUPERACION);
         assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE);
         assertThat(fin.getVersionAplicada()).isNull();
+    }
+
+    @Test
+    void unAvisoNuevoDisparaLaIncrementalYQuedaProcesado() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenReturn(version(6L));
+
+        service.procesarAviso(aviso("catalog-event-6", 6L));
+
+        assertThat(ultimoGuardado().getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
+        ArgumentCaptor<AvisoCatalogo> procesado = ArgumentCaptor.forClass(AvisoCatalogo.class);
+        verify(avisoCatalogoRepository).save(procesado.capture());
+        assertThat(procesado.getValue().getEventId()).isEqualTo("catalog-event-6");
+        assertThat(procesado.getValue().getVersion()).isEqualTo(6L);
+        assertThat(procesado.getValue().getProcesadoEn()).isNotNull();
+    }
+
+    @Test
+    void unAvisoRepetidoNoTieneEfectos() {
+        when(avisoCatalogoRepository.existsByEventId("catalog-event-6")).thenReturn(true);
+
+        service.procesarAviso(aviso("catalog-event-6", 6L));
+
+        verifyNoInteractions(sincronizarCatalogoIncrementalUseCase, versionAplicadaRepository);
+        verify(avisoCatalogoRepository, never()).save(any());
+        assertThat(guardados).isEmpty();
+    }
+
+    @Test
+    void unAvisoDeUnaVersionYaIncorporadaQuedaProcesadoSinSincronizar() {
+        hayCopiaLocal();
+
+        service.procesarAviso(aviso("catalog-event-4", 4L));
+
+        verifyNoInteractions(sincronizarCatalogoIncrementalUseCase);
+        verify(avisoCatalogoRepository).save(any());
+        assertThat(guardados).isEmpty();
+    }
+
+    @Test
+    void unAvisoSinCopiaLocalHaceLaCompletaYQuedaProcesado() {
+        when(versionAplicadaRepository.find()).thenReturn(Optional.empty());
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenReturn(version(6L));
+
+        service.procesarAviso(aviso("catalog-event-6", 6L));
+
+        assertThat(ultimoGuardado().getProceso()).isEqualTo(ProcesoSincronizacion.COMPLETA);
+        verify(avisoCatalogoRepository).save(any());
+    }
+
+    @Test
+    void siLaIncrementalFallaElAvisoNoQuedaProcesado() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenThrow(NO_DISPONIBLE);
+
+        service.procesarAviso(aviso("catalog-event-6", 6L));
+
+        verify(avisoCatalogoRepository, never()).save(any());
+        assertThat(ultimoGuardado().getResultado()).isEqualTo(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE);
+    }
+
+    @Test
+    void unAvisoEsperaAQueTermineLaSincronizacionEnCurso() throws InterruptedException {
+        CountDownLatch empezo = new CountDownLatch(1);
+        CountDownLatch terminar = new CountDownLatch(1);
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenAnswer(invocacion -> {
+            empezo.countDown();
+            terminar.await(5, TimeUnit.SECONDS);
+            return version(5L);
+        });
+        when(versionAplicadaRepository.find()).thenReturn(Optional.of(version(5L)));
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenReturn(version(6L));
+        Thread completa = new Thread(service::sincronizar);
+        completa.start();
+        assertThat(empezo.await(5, TimeUnit.SECONDS)).isTrue();
+
+        Thread kafka = new Thread(() -> service.procesarAviso(aviso("catalog-event-6", 6L)));
+        kafka.start();
+        esperarQueSeBloquee(kafka);
+        verifyNoInteractions(sincronizarCatalogoIncrementalUseCase);
+
+        terminar.countDown();
+        completa.join(5000);
+        kafka.join(5000);
+        verify(sincronizarCatalogoIncrementalUseCase).sincronizar();
+    }
+
+    private static void esperarQueSeBloquee(Thread hilo) throws InterruptedException {
+        long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (hilo.getState() != Thread.State.WAITING && System.nanoTime() < limite) {
+            Thread.onSpinWait();
+        }
+        assertThat(hilo.getState()).isEqualTo(Thread.State.WAITING);
+    }
+
+    private static AvisoCatalogo aviso(String eventId, Long version) {
+        return AvisoCatalogo.builder().eventId(eventId).version(version).build();
     }
 
     private void hayCopiaLocal() {
