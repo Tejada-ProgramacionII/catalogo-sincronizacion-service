@@ -19,4 +19,5 @@ public class EstadoSincronizacionResponse {
     private Long versionAplicada;
     private Instant aplicadaEn;
     private IntentoSincronizacionResponse ultimoIntento;
+    private Instant ultimaVerificacion;
 }

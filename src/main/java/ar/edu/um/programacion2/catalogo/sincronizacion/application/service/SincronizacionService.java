@@ -3,6 +3,7 @@ package ar.edu.um.programacion2.catalogo.sincronizacion.application.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -12,6 +13,7 @@ import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.DiscontinuidadException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.AvisoCatalogo;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
@@ -20,7 +22,10 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplic
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.ConsultarEstadoSincronizacionUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoIncrementalUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.VerificarVersionesPendientesUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.AvisoCatalogoRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.UltimaVerificacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,18 +48,63 @@ public class SincronizacionService {
     private final VersionAplicadaRepository versionAplicadaRepository;
     private final IntentoSincronizacionRepository intentoSincronizacionRepository;
     private final ConsultarEstadoSincronizacionUseCase consultarEstadoSincronizacionUseCase;
+    private final VerificarVersionesPendientesUseCase verificarVersionesPendientesUseCase;
+    private final UltimaVerificacionRepository ultimaVerificacionRepository;
+    private final AvisoCatalogoRepository avisoCatalogoRepository;
+
+    // D-08: una sola sincronización a la vez, sea cual sea el disparador.
+    private final ReentrantLock sincronizando = new ReentrantLock();
 
     public ResumenSincronizacion consultarEstado() {
         return consultarEstadoSincronizacionUseCase.consultarEstado();
     }
 
-    public void sincronizarSiNoHayCopia() {
-        Optional<VersionAplicada> actual = versionAplicadaRepository.find();
-        if (actual.isPresent()) {
-            log.info("Ya hay una copia local (versión {}): no se sincroniza", actual.get().getVersion());
+    // D-07: al arrancar y periódicamente. Si otra sincronización está corriendo, esa ya deja la copia verificada.
+    public void verificar() {
+        if (!sincronizando.tryLock()) {
+            log.info("Hay una sincronización en curso: se saltea la verificación");
             return;
         }
-        sincronizar();
+        try {
+            if (hayVersionesPendientes()) {
+                sincronizarIncremental();
+            } else {
+                // Sin nada que aplicar no se registra un intento: solo cuándo se verificó.
+                ultimaVerificacionRepository.save(Instant.now());
+            }
+        } finally {
+            sincronizando.unlock();
+        }
+    }
+
+    // CU-02, pasos 1 y 2. Espera a la sincronización en curso: el aviso se confirma recién después de aplicar.
+    public void procesarAviso(AvisoCatalogo aviso) {
+        sincronizando.lock();
+        try {
+            if (avisoCatalogoRepository.existsByEventId(aviso.getEventId())) {
+                log.info("Aviso {} repetido: ya se procesó", aviso.getEventId());
+                return;
+            }
+            Optional<VersionAplicada> local = versionAplicadaRepository.find();
+            boolean yaIncorporado = local.isPresent() && aviso.getVersion() <= local.get().getVersion();
+            // Si la incremental falla no se marca: un reenvío del aviso vuelve a intentar (D-05 lo hace inofensivo).
+            if (yaIncorporado || sincronizarIncremental().isPresent()) {
+                aviso.setProcesadoEn(Instant.now());
+                avisoCatalogoRepository.save(aviso);
+            }
+        } finally {
+            sincronizando.unlock();
+        }
+    }
+
+    private boolean hayVersionesPendientes() {
+        try {
+            return verificarVersionesPendientesUseCase.hayVersionesPendientes();
+        } catch (CatedraNoDisponibleException | CatedraRechazoException e) {
+            // La incremental reintenta y, si sigue fallando, deja el error registrado (CON_ERROR).
+            log.warn("No se pudo verificar la versión publicada: {}", e.getMessage());
+            return true;
+        }
     }
 
     public void cerrarIntentosInterrumpidos() {
@@ -67,23 +117,33 @@ public class SincronizacionService {
 
     // CU-01
     public Optional<VersionAplicada> sincronizar() {
-        return registrar(ProcesoSincronizacion.COMPLETA,
-                registro -> conReintentos(registro, sincronizarCatalogoCompletoUseCase::sincronizar));
+        sincronizando.lock();
+        try {
+            return registrar(ProcesoSincronizacion.COMPLETA,
+                    registro -> conReintentos(registro, sincronizarCatalogoCompletoUseCase::sincronizar));
+        } finally {
+            sincronizando.unlock();
+        }
     }
 
     // CU-02, y CU-03 si no puede continuar desde la versión local.
     public Optional<VersionAplicada> sincronizarIncremental() {
-        if (versionAplicadaRepository.find().isEmpty()) {
-            log.info("Sin copia local: en lugar de la incremental se hace la sincronización completa");
-            return sincronizar();
-        }
-        return registrar(ProcesoSincronizacion.INCREMENTAL, registro -> {
-            try {
-                return conReintentos(registro, sincronizarCatalogoIncrementalUseCase::sincronizar);
-            } catch (DiscontinuidadException e) {
-                return recuperar(registro, e);
+        sincronizando.lock();
+        try {
+            if (versionAplicadaRepository.find().isEmpty()) {
+                log.info("Sin copia local: en lugar de la incremental se hace la sincronización completa");
+                return sincronizar();
             }
-        });
+            return registrar(ProcesoSincronizacion.INCREMENTAL, registro -> {
+                try {
+                    return conReintentos(registro, sincronizarCatalogoIncrementalUseCase::sincronizar);
+                } catch (DiscontinuidadException e) {
+                    return recuperar(registro, e);
+                }
+            });
+        } finally {
+            sincronizando.unlock();
+        }
     }
 
     // CU-03. Una segunda discontinuidad no se atrapa acá: llega a registrar() y termina (D-08).

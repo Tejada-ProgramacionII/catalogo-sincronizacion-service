@@ -34,12 +34,12 @@ class SincronizacionAlArrancarListenerTest {
     }
 
     @Test
-    void alArrancarCierraLosIntentosColgadosYDespuesSincroniza() {
+    void alArrancarCierraLosIntentosColgadosYDespuesVerifica() {
         listener.sincronizarAlArrancar();
 
         InOrder orden = inOrder(sincronizacionService);
         orden.verify(sincronizacionService).cerrarIntentosInterrumpidos();
-        orden.verify(sincronizacionService).sincronizarSiNoHayCopia();
+        orden.verify(sincronizacionService).verificar();
     }
 
     @Test
@@ -49,13 +49,13 @@ class SincronizacionAlArrancarListenerTest {
         listener.sincronizarAlArrancar();
 
         verify(sincronizacionService).cerrarIntentosInterrumpidos();
-        verify(sincronizacionService, never()).sincronizarSiNoHayCopia();
+        verify(sincronizacionService, never()).verificar();
     }
 
     @Test
     void unErrorAlSincronizarNoTumbaLaApp() {
         doThrow(new DataIntegrityViolationException("violación de clave foránea"))
-                .when(sincronizacionService).sincronizarSiNoHayCopia();
+                .when(sincronizacionService).verificar();
 
         assertThatCode(listener::sincronizarAlArrancar).doesNotThrowAnyException();
     }
