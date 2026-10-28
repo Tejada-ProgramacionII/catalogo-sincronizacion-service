@@ -7,6 +7,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.persistence.entity.IntentoSincronizacionEntity;
 
@@ -20,12 +21,13 @@ class IntentoSincronizacionMapperTest {
     @Test
     void toEntityCopiaLosCamposYGuardaElResultadoComoTexto() {
         IntentoSincronizacion intento = IntentoSincronizacion.builder()
-                .id(3L).inicio(INICIO).fin(FIN).resultado(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE)
+                .id(3L).proceso(ProcesoSincronizacion.RECUPERACION).inicio(INICIO).fin(FIN).resultado(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE)
                 .intentos(3).mensaje("La cátedra no respondió después de 3 intentos").build();
 
         IntentoSincronizacionEntity entity = mapper.toEntity(intento);
 
         assertThat(entity.getId()).isEqualTo(3L);
+        assertThat(entity.getProceso()).isEqualTo("RECUPERACION");
         assertThat(entity.getInicio()).isEqualTo(INICIO);
         assertThat(entity.getFin()).isEqualTo(FIN);
         assertThat(entity.getResultado()).isEqualTo("CATEDRA_NO_DISPONIBLE");
@@ -37,11 +39,12 @@ class IntentoSincronizacionMapperTest {
     @Test
     void toDomainModelCopiaLosCamposYTraduceElResultado() {
         IntentoSincronizacionEntity entity = IntentoSincronizacionEntity.builder()
-                .id(4L).inicio(INICIO).fin(FIN).resultado("OK").intentos(1).versionAplicada(7L).build();
+                .id(4L).proceso("INCREMENTAL").inicio(INICIO).fin(FIN).resultado("OK").intentos(1).versionAplicada(7L).build();
 
         IntentoSincronizacion intento = mapper.toDomainModel(entity);
 
         assertThat(intento.getId()).isEqualTo(4L);
+        assertThat(intento.getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
         assertThat(intento.getInicio()).isEqualTo(INICIO);
         assertThat(intento.getFin()).isEqualTo(FIN);
         assertThat(intento.getResultado()).isEqualTo(ResultadoSincronizacion.OK);
@@ -52,7 +55,8 @@ class IntentoSincronizacionMapperTest {
 
     @Test
     void unIntentoAbiertoNoTieneResultado() {
-        IntentoSincronizacion abierto = IntentoSincronizacion.builder().inicio(INICIO).build();
+        IntentoSincronizacion abierto = IntentoSincronizacion.builder()
+                .proceso(ProcesoSincronizacion.COMPLETA).inicio(INICIO).build();
 
         assertThat(mapper.toEntity(abierto).getResultado()).isNull();
         assertThat(mapper.toDomainModel(mapper.toEntity(abierto)).getResultado()).isNull();

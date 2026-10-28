@@ -3,6 +3,7 @@ package ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.persisten
 import org.springframework.stereotype.Component;
 
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.persistence.entity.IntentoSincronizacionEntity;
 
@@ -15,6 +16,7 @@ public class IntentoSincronizacionMapper {
         }
         return IntentoSincronizacionEntity.builder()
                 .id(intento.getId())
+                .proceso(intento.getProceso().name())
                 .inicio(intento.getInicio())
                 .fin(intento.getFin())
                 .resultado(intento.getResultado() == null ? null : intento.getResultado().name())
@@ -30,6 +32,7 @@ public class IntentoSincronizacionMapper {
         }
         return IntentoSincronizacion.builder()
                 .id(entity.getId())
+                .proceso(ProcesoSincronizacion.valueOf(entity.getProceso()))
                 .inicio(entity.getInicio())
                 .fin(entity.getFin())
                 .resultado(entity.getResultado() == null ? null : ResultadoSincronizacion.valueOf(entity.getResultado()))

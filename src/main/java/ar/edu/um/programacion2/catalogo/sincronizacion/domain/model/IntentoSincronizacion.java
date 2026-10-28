@@ -15,6 +15,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class IntentoSincronizacion {
     private Long id;
+    private ProcesoSincronizacion proceso;
     private Instant inicio;
     private Instant fin;
     private ResultadoSincronizacion resultado;

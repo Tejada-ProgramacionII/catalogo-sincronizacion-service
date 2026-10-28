@@ -27,6 +27,7 @@ import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.EstadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
@@ -98,6 +99,7 @@ class SincronizacionServiceTest {
         });
         IntentoSincronizacion fin = ultimoGuardado();
         assertThat(fin.getId()).isEqualTo(1L);
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.COMPLETA);
         assertThat(fin.getFin()).isNotNull();
         assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.OK);
         assertThat(fin.getVersionAplicada()).isEqualTo(7L);
@@ -228,6 +230,7 @@ class SincronizacionServiceTest {
     private static IntentoSincronizacion copia(IntentoSincronizacion intento) {
         return IntentoSincronizacion.builder()
                 .id(intento.getId())
+                .proceso(intento.getProceso())
                 .inicio(intento.getInicio())
                 .fin(intento.getFin())
                 .resultado(intento.getResultado())

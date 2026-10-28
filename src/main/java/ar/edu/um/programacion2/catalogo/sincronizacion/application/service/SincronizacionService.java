@@ -10,6 +10,7 @@ import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
@@ -61,7 +62,7 @@ public class SincronizacionService {
 
     public Optional<VersionAplicada> sincronizar() {
         IntentoSincronizacion registro = intentoSincronizacionRepository.save(
-                IntentoSincronizacion.builder().inicio(Instant.now()).build());
+                IntentoSincronizacion.builder().proceso(ProcesoSincronizacion.COMPLETA).inicio(Instant.now()).build());
         try {
             return sincronizarConReintentos(registro);
         } catch (RuntimeException e) {

@@ -29,6 +29,7 @@ public class SincronizacionDtoMapper {
             return null;
         }
         return IntentoSincronizacionResponse.builder()
+                .proceso(intento.getProceso())
                 .inicio(intento.getInicio())
                 .fin(intento.getFin())
                 .resultado(intento.getResultado())
