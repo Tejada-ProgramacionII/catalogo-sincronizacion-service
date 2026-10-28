@@ -17,16 +17,22 @@ El servicio necesita estas variables de entorno para arrancar; si falta alguna, 
 | --- | --- |
 | `CATEDRA_BASE_URL` | URL base de la API REST de la cátedra. |
 | `CATEDRA_JWT` | JWT técnico de la cuenta del proyecto (dura un año). |
+| `CATEDRA_REDIS_HOST` | Host del Redis de la cátedra, donde publica las versiones y los cambios del catálogo. |
+| `CATEDRA_REDIS_USERNAME` | Usuario de Redis de la integración (solo lectura en `catedra:sync:*`). |
+| `CATEDRA_REDIS_PASSWORD` | Clave de ese usuario. |
 
 Sus valores se reciben por otro canal y **no se publican** en el repositorio, en los logs ni en la documentación.
 
 ```bash
 export CATEDRA_BASE_URL=<url-de-la-catedra>
 export CATEDRA_JWT=<jwt-tecnico>
+export CATEDRA_REDIS_HOST=<host-de-redis>
+export CATEDRA_REDIS_USERNAME=<usuario-de-redis>
+export CATEDRA_REDIS_PASSWORD=<clave-de-redis>
 ./mvnw spring-boot:run
 ```
 
-Los timeouts tienen valores por defecto (5 s de conexión y 30 s de lectura) y se pueden cambiar con `CATEDRA_CONNECT_TIMEOUT` y `CATEDRA_READ_TIMEOUT` (por ejemplo, `10s`).
+Los timeouts tienen valores por defecto (5 s de conexión y 30 s de lectura) y se pueden cambiar con `CATEDRA_CONNECT_TIMEOUT` y `CATEDRA_READ_TIMEOUT` (por ejemplo, `10s`). Redis usa el puerto 6379 y un timeout de 5 s, que se cambian con `CATEDRA_REDIS_PORT` y `CATEDRA_REDIS_TIMEOUT`. La conexión a Redis se abre recién en la primera lectura: si Redis no responde, el servicio arranca igual.
 
 ## Seguridad
 
