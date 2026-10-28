@@ -2,12 +2,14 @@ package ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.startup;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,19 +34,22 @@ class SincronizacionAlArrancarListenerTest {
     }
 
     @Test
-    void alArrancarPideSincronizarSiNoHayCopia() {
+    void alArrancarCierraLosIntentosColgadosYDespuesSincroniza() {
         listener.sincronizarAlArrancar();
 
-        verify(sincronizacionService).sincronizarSiNoHayCopia();
+        InOrder orden = inOrder(sincronizacionService);
+        orden.verify(sincronizacionService).cerrarIntentosInterrumpidos();
+        orden.verify(sincronizacionService).sincronizarSiNoHayCopia();
     }
 
     @Test
-    void conAlArrancarDesactivadoNoSincroniza() {
+    void conAlArrancarDesactivadoSoloCierraLosIntentosColgados() {
         sincronizacionProperties.setAlArrancar(false);
 
         listener.sincronizarAlArrancar();
 
-        verifyNoInteractions(sincronizacionService);
+        verify(sincronizacionService).cerrarIntentosInterrumpidos();
+        verify(sincronizacionService, never()).sincronizarSiNoHayCopia();
     }
 
     @Test

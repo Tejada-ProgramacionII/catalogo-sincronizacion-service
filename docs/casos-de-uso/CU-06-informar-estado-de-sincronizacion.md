@@ -42,6 +42,7 @@
   | Con error | El último intento falló; la copia que se consulta es la última completa. |
 
 - **D-11. El último error se informa sin datos sensibles:** se indica el proceso y un motivo funcional (por ejemplo, "la cátedra no respondió" o "discontinuidad de versiones"), nunca tokens, credenciales, direcciones internas ni trazas técnicas. El detalle técnico queda en los logs del servicio.
+- **D-13. Cálculo del estado:** manda la última sincronización registrada (en curso → sincronizando; terminada mal → con error); si terminó bien, el estado es al día o sin datos según haya versión aplicada. Al arrancar, una sincronización que quedó abierta por una caída se cierra como error.
 - La app usa este estado para avisar al usuario que los resultados pueden estar desactualizados. El servicio de turnos lo usa para saber con qué versión del catálogo está trabajando.
 
 ## Fuentes
