@@ -48,6 +48,11 @@ public class JpaProfesionalRepositoryAdapter implements ProfesionalRepository {
     }
 
     @Override
+    public void deleteAll() {
+        jpaProfesionalRepository.deleteAllInBatch();
+    }
+
+    @Override
     public Pagina<Profesional> search(FiltroBusquedaProfesionales filtro, int numeroPagina, int tamanioPagina) {
         Page<ProfesionalEntity> pagina = jpaProfesionalRepository.buscar(
                 filtro.getCategoriaId(),
