@@ -21,6 +21,7 @@ public class SincronizacionDtoMapper {
                 .versionAplicada(version == null ? null : version.getVersion())
                 .aplicadaEn(version == null ? null : version.getAplicadaEn())
                 .ultimoIntento(toIntentoResponse(resumen.getUltimoIntento()))
+                .ultimaVerificacion(resumen.getUltimaVerificacion())
                 .build();
     }
 

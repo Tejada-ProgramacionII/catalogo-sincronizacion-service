@@ -22,8 +22,9 @@ public class SincronizacionAlArrancarListener {
         try {
             // Una sincronización que quedó abierta murió con el proceso anterior.
             sincronizacionService.cerrarIntentosInterrumpidos();
+            // D-07: sin copia hace la completa; con copia, la incremental si hay versiones nuevas.
             if (sincronizacionProperties.isAlArrancar()) {
-                sincronizacionService.sincronizarSiNoHayCopia();
+                sincronizacionService.verificar();
             }
         } catch (RuntimeException e) {
             log.error("Sincronización al arrancar fallida ({}): {}", e.getClass().getSimpleName(), e.getMessage());

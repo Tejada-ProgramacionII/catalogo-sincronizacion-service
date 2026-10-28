@@ -7,6 +7,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
@@ -14,6 +15,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +41,9 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplic
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.ConsultarEstadoSincronizacionUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoIncrementalUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.VerificarVersionesPendientesUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.UltimaVerificacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,6 +71,12 @@ class SincronizacionServiceTest {
     @Mock
     private ConsultarEstadoSincronizacionUseCase consultarEstadoSincronizacionUseCase;
 
+    @Mock
+    private VerificarVersionesPendientesUseCase verificarVersionesPendientesUseCase;
+
+    @Mock
+    private UltimaVerificacionRepository ultimaVerificacionRepository;
+
     private SincronizacionProperties sincronizacionProperties;
 
     private SincronizacionService service;
@@ -80,7 +91,8 @@ class SincronizacionServiceTest {
         sincronizacionProperties.setEsperaEntreIntentos(Duration.ZERO);
         service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizarCatalogoIncrementalUseCase,
                 sincronizacionProperties,
-                versionAplicadaRepository, intentoSincronizacionRepository, consultarEstadoSincronizacionUseCase);
+                versionAplicadaRepository, intentoSincronizacionRepository, consultarEstadoSincronizacionUseCase,
+                verificarVersionesPendientesUseCase, ultimaVerificacionRepository);
         when(intentoSincronizacionRepository.save(any())).thenAnswer(invocacion -> {
             IntentoSincronizacion intento = invocacion.getArgument(0);
             guardados.add(copia(intento));
@@ -181,25 +193,72 @@ class SincronizacionServiceTest {
     }
 
     @Test
-    void sinCopiaLocalSincroniza() {
-        when(versionAplicadaRepository.find()).thenReturn(Optional.empty());
-        when(sincronizarCatalogoCompletoUseCase.sincronizar())
-                .thenReturn(VersionAplicada.builder().version(7L).aplicadaEn(Instant.now()).build());
+    void laVerificacionSinPendientesNoRegistraUnIntentoSoloLaFecha() {
+        when(verificarVersionesPendientesUseCase.hayVersionesPendientes()).thenReturn(false);
 
-        service.sincronizarSiNoHayCopia();
+        service.verificar();
 
-        verify(sincronizarCatalogoCompletoUseCase).sincronizar();
+        verify(ultimaVerificacionRepository).save(any(Instant.class));
+        assertThat(guardados).isEmpty();
+        verifyNoInteractions(sincronizarCatalogoIncrementalUseCase, sincronizarCatalogoCompletoUseCase);
     }
 
     @Test
-    void conCopiaLocalNoSincronizaNiRegistra() {
-        when(versionAplicadaRepository.find())
-                .thenReturn(Optional.of(VersionAplicada.builder().version(7L).aplicadaEn(Instant.now()).build()));
+    void laVerificacionConPendientesRegistraLaIncremental() {
+        when(verificarVersionesPendientesUseCase.hayVersionesPendientes()).thenReturn(true);
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenReturn(version(6L));
 
-        service.sincronizarSiNoHayCopia();
+        service.verificar();
 
-        verify(sincronizarCatalogoCompletoUseCase, never()).sincronizar();
-        assertThat(guardados).isEmpty();
+        assertThat(ultimoGuardado().getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
+        assertThat(ultimoGuardado().getResultado()).isEqualTo(ResultadoSincronizacion.OK);
+        verify(ultimaVerificacionRepository, never()).save(any());
+    }
+
+    @Test
+    void siNoSePuedeVerificarIntentaLaIncrementalYRegistraElError() {
+        when(verificarVersionesPendientesUseCase.hayVersionesPendientes()).thenThrow(NO_DISPONIBLE);
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenThrow(NO_DISPONIBLE);
+
+        service.verificar();
+
+        verify(sincronizarCatalogoIncrementalUseCase, times(3)).sincronizar();
+        assertThat(ultimoGuardado().getResultado()).isEqualTo(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE);
+        verify(ultimaVerificacionRepository, never()).save(any());
+    }
+
+    @Test
+    void laVerificacionSinCopiaLocalHaceLaCompleta() {
+        when(verificarVersionesPendientesUseCase.hayVersionesPendientes()).thenReturn(true);
+        when(versionAplicadaRepository.find()).thenReturn(Optional.empty());
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenReturn(version(1L));
+
+        service.verificar();
+
+        assertThat(ultimoGuardado().getProceso()).isEqualTo(ProcesoSincronizacion.COMPLETA);
+        assertThat(ultimoGuardado().getResultado()).isEqualTo(ResultadoSincronizacion.OK);
+    }
+
+    @Test
+    void siHayOtraSincronizacionCorriendoLaVerificacionSeSaltea() throws InterruptedException {
+        CountDownLatch empezo = new CountDownLatch(1);
+        CountDownLatch terminar = new CountDownLatch(1);
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenAnswer(invocacion -> {
+            empezo.countDown();
+            terminar.await(5, TimeUnit.SECONDS);
+            return version(1L);
+        });
+        Thread completa = new Thread(service::sincronizar);
+        completa.start();
+        assertThat(empezo.await(5, TimeUnit.SECONDS)).isTrue();
+
+        service.verificar();
+
+        terminar.countDown();
+        completa.join(5000);
+        verifyNoInteractions(verificarVersionesPendientesUseCase, ultimaVerificacionRepository);
     }
 
     @Test
