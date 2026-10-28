@@ -15,9 +15,13 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -26,9 +30,12 @@ import ar.edu.um.programacion2.catalogo.categoria.domain.model.Categoria;
 import ar.edu.um.programacion2.catalogo.horario.domain.model.HorarioSemanal;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.Profesional;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionesPublicadas;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.cache.mapper.CambiosVersionCacheMapper;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.mapper.SnapshotCatalogoClientMapper;
+import io.lettuce.core.RedisCommandExecutionException;
+import io.lettuce.core.RedisConnectionException;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -176,6 +183,45 @@ class RedisCatalogoPublicadoClientAdapterTest {
         assertThatThrownBy(() -> adapter.getCambios(7L))
                 .isInstanceOf(CatedraNoDisponibleException.class)
                 .hasMessage("No se pudo leer el catálogo publicado en Redis");
+    }
+
+    @Test
+    void siRedisRechazaLaClaveLanzaRechazoSinElUsuarioNiElHost() {
+        // Como llega de Lettuce: el WRONGPASS del AUTH queda dos causas más abajo.
+        cuandoLeerVersionesFalla(new RedisConnectionFailureException("Unable to connect to Redis",
+                new RedisConnectionException("Unable to connect to 172.17.201.1/<unresolved>:6379",
+                        new RedisCommandExecutionException(
+                                "WRONGPASS invalid username-password pair or user is disabled."))));
+
+        assertThatThrownBy(adapter::getVersiones)
+                .isInstanceOf(CatedraRechazoException.class)
+                .hasMessage("Redis rechazó las credenciales o los permisos de la integración");
+    }
+
+    @Test
+    void siLaIntegracionNoTienePermisoLanzaRechazo() {
+        cuandoLeerVersionesFalla(new RedisSystemException("Error in execution", new RedisCommandExecutionException(
+                "NOPERM User grp_proyecto-joaquin-tejada has no permissions to access the 'catedra:holds:1' key")));
+
+        assertThatThrownBy(adapter::getVersiones)
+                .isInstanceOf(CatedraRechazoException.class)
+                .hasMessageNotContaining("grp_proyecto");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"ERR unknown command", "LOADING Redis is loading the dataset in memory",
+            "BUSY Redis is busy running a script", "Error con WRONGPASS en el medio"})
+    void otrosErroresDeRedisSiguenSiendoNoDisponible(String error) {
+        cuandoLeerVersionesFalla(new RedisSystemException("Error in execution",
+                new RedisCommandExecutionException(error)));
+
+        assertThatThrownBy(adapter::getVersiones).isInstanceOf(CatedraNoDisponibleException.class);
+    }
+
+    private void cuandoLeerVersionesFalla(RuntimeException error) {
+        when(catedraRedisTemplate.opsForValue()).thenReturn(valores);
+        when(valores.multiGet(anyList())).thenThrow(error);
     }
 
     private void cuandoElHash(String clave, List<Object> campos, String... json) {

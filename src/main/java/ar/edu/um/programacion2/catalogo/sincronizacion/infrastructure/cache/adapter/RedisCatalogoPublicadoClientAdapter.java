@@ -14,6 +14,7 @@ import ar.edu.um.programacion2.catalogo.categoria.domain.model.Categoria;
 import ar.edu.um.programacion2.catalogo.horario.domain.model.HorarioSemanal;
 import ar.edu.um.programacion2.catalogo.profesional.domain.model.Profesional;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.CambiosVersion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionesPublicadas;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.CatalogoPublicadoClient;
@@ -23,6 +24,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.dto
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.dto.HorarioSemanalCatedraResponse;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.dto.ProfesionalCatedraResponse;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.mapper.SnapshotCatalogoClientMapper;
+import io.lettuce.core.RedisCommandExecutionException;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -36,6 +38,9 @@ public class RedisCatalogoPublicadoClientAdapter implements CatalogoPublicadoCli
     static final String CATEGORIAS = "catedra:sync:professional-categories";
     static final String PROFESIONALES = "catedra:sync:professionals";
     static final String HORARIOS = "catedra:sync:weekly-schedules";
+
+    // Tipos de error de RESP (la primera palabra del error) que indican credenciales o permisos inválidos.
+    private static final List<String> ERRORES_DE_RECHAZO = List.of("WRONGPASS", "NOPERM");
 
     private final StringRedisTemplate catedraRedisTemplate;
     private final JsonMapper jsonMapper;
@@ -96,7 +101,20 @@ public class RedisCatalogoPublicadoClientAdapter implements CatalogoPublicadoCli
         try {
             return lectura.get();
         } catch (DataAccessException e) {
+            if (esRechazo(e)) {
+                throw new CatedraRechazoException("Redis rechazó las credenciales o los permisos de la integración", e);
+            }
             throw new CatedraNoDisponibleException("No se pudo leer el catálogo publicado en Redis", e);
         }
+    }
+
+    private static boolean esRechazo(Throwable error) {
+        for (Throwable causa = error; causa != null; causa = causa.getCause()) {
+            if (causa instanceof RedisCommandExecutionException && causa.getMessage() != null
+                    && ERRORES_DE_RECHAZO.stream().anyMatch(causa.getMessage()::startsWith)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
