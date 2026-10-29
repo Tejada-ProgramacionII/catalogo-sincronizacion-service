@@ -91,4 +91,11 @@ class JpaCategoriaRepositoryAdapterTest {
 
         assertThat(categorias).extracting(Categoria::getId).containsExactly(1L, 2L);
     }
+
+    @Test
+    void deleteAllBorraTodoEnUnaSolaSentencia() {
+        adapter.deleteAll();
+
+        verify(jpaCategoriaRepository).deleteAllInBatch();
+    }
 }

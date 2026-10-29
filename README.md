@@ -33,3 +33,21 @@ export CATEDRA_JWT=<jwt-tecnico>
 ```
 
 Los timeouts tienen valores por defecto (5 s de conexión y 30 s de lectura) y se pueden cambiar con `CATEDRA_CONNECT_TIMEOUT` y `CATEDRA_READ_TIMEOUT` (por ejemplo, `10s`).
+
+## Seguridad
+
+Todos los endpoints `/api/**` piden el JWT de usuario que emite **turnos-reservas-service** (`Authorization: Bearer <token>`). El catálogo no emite tokens: solo valida la firma HS512 y el vencimiento con el mismo secreto que turnos. Sin token, o con un token inválido o vencido, responde 401. Swagger (`/swagger-ui/**`, `/v3/api-docs/**`) queda público.
+
+El secreto llega por la variable de entorno `JWT_SECRET` (obligatoria: sin ella el servicio no arranca). Tiene que ser **el mismo valor** que usa turnos; si difieren, todos los pedidos responden 401. Se genera una sola vez, en Base64 y con al menos 64 bytes:
+
+```bash
+openssl rand -base64 64 | tr -d '\n'
+```
+
+```bash
+export JWT_SECRET=<el-mismo-secreto-que-turnos>
+./mvnw spring-boot:run
+```
+
+Como el resto de los secretos, no se publica en el repositorio, en los logs ni en la documentación.
+
