@@ -5,9 +5,9 @@
 | Campo | Descripción |
 | --- | --- |
 | Objetivo | Informar en qué estado está la copia local del catálogo y cuál fue el último error de sincronización. |
-| Actores principales | Usuario final (desde la app KMP) y servicio de turnos. |
+| Actor principal | Usuario final (desde la app KMP). |
 | Actor de apoyo | Ninguno: se responde con lo que el servicio registró en CU-01, CU-02 y CU-03. |
-| Disparador | La app o el servicio de turnos consultan el estado. |
+| Disparador | La app consulta el estado. |
 
 ## Precondiciones
 
@@ -15,7 +15,7 @@
 
 ## Flujo principal
 
-1. La app o el servicio de turnos piden el estado de sincronización.
+1. La app pide el estado de sincronización.
 2. El servicio responde con:
    - **Estado:** uno de los descritos en las reglas.
    - **Versión local aplicada** y **fecha de la última sincronización exitosa**.
@@ -42,7 +42,8 @@
   | Con error | El último intento falló; la copia que se consulta es la última completa. |
 
 - **D-11. El último error se informa sin datos sensibles:** se indica el proceso y un motivo funcional (por ejemplo, "la cátedra no respondió" o "discontinuidad de versiones"), nunca tokens, credenciales, direcciones internas ni trazas técnicas. El detalle técnico queda en los logs del servicio.
-- La app usa este estado para avisar al usuario que los resultados pueden estar desactualizados. El servicio de turnos lo usa para saber con qué versión del catálogo está trabajando.
+- **D-13. Cálculo del estado:** manda la última sincronización registrada (en curso → sincronizando; terminada mal → con error); si terminó bien, el estado es al día o sin datos según haya versión aplicada. Al arrancar, una sincronización que quedó abierta por una caída se cierra como error.
+- La app usa este estado para avisar al usuario que los resultados pueden estar desactualizados.
 
 ## Fuentes
 

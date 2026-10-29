@@ -19,11 +19,12 @@ public class SincronizacionAlArrancarListener {
 
     @EventListener(ApplicationReadyEvent.class)
     public void sincronizarAlArrancar() {
-        if (!sincronizacionProperties.isAlArrancar()) {
-            return;
-        }
         try {
-            sincronizacionService.sincronizarSiNoHayCopia();
+            // Una sincronización que quedó abierta murió con el proceso anterior.
+            sincronizacionService.cerrarIntentosInterrumpidos();
+            if (sincronizacionProperties.isAlArrancar()) {
+                sincronizacionService.sincronizarSiNoHayCopia();
+            }
         } catch (RuntimeException e) {
             log.error("Sincronización al arrancar fallida ({}): {}", e.getClass().getSimpleName(), e.getMessage());
         }
