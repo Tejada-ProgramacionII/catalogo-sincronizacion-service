@@ -4,5 +4,6 @@ public enum ResultadoSincronizacion {
     OK,
     CATEDRA_NO_DISPONIBLE,
     RECHAZO,
+    DISCONTINUIDAD,
     ERROR
 }

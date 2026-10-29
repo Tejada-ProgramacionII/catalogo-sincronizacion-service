@@ -74,6 +74,7 @@ Siempre responde 200, también sin datos. Al día:
   "versionAplicada": 1,
   "aplicadaEn": "2026-10-27T21:37:37.530100Z",
   "ultimoIntento": {
+    "proceso": "COMPLETA",
     "inicio": "2026-10-27T21:37:36.651835Z",
     "fin": "2026-10-27T21:37:37.575769Z",
     "resultado": "OK",
@@ -91,6 +92,7 @@ Con error, conservando la copia anterior:
   "versionAplicada": 1,
   "aplicadaEn": "2026-10-27T13:34:32.228095Z",
   "ultimoIntento": {
+    "proceso": "COMPLETA",
     "inicio": "2026-10-27T21:35:47.877111Z",
     "fin": "2026-10-27T21:36:14.851805Z",
     "resultado": "ERROR",
@@ -105,9 +107,10 @@ Con error, conservando la copia anterior:
 | `estado` | texto | `SIN_DATOS`, `SINCRONIZANDO`, `CON_ERROR` o `AL_DIA` (D-10, D-13). |
 | `versionAplicada`, `aplicadaEn` | número, fecha | Versión de la copia local y cuándo se aplicó. `null` si nunca se aplicó una copia completa. |
 | `ultimoIntento` | objeto | La última sincronización registrada; `null` si no hubo ninguna. |
+| `ultimoIntento.proceso` | texto | `COMPLETA` (CU-01), `INCREMENTAL` (CU-02) o `RECUPERACION` (CU-03): una incremental que encontró una discontinuidad y se recuperó con un snapshot. |
 | `ultimoIntento.inicio`, `ultimoIntento.fin` | fecha | `fin` es `null` mientras está en curso. |
-| `ultimoIntento.resultado` | texto | `OK`, `CATEDRA_NO_DISPONIBLE`, `RECHAZO` o `ERROR`; `null` mientras está en curso. |
-| `ultimoIntento.intentos` | número | Pedidos hechos a la cátedra, contando los reintentos (D-03). |
-| `ultimoIntento.mensaje` | texto | Motivo funcional del error, sin datos sensibles (D-11); `null` si terminó bien. |
+| `ultimoIntento.resultado` | texto | `OK`, `CATEDRA_NO_DISPONIBLE`, `RECHAZO`, `DISCONTINUIDAD` (la recuperación tampoco pudo continuar, D-08) o `ERROR`; `null` mientras está en curso. |
+| `ultimoIntento.intentos` | número | Pedidos hechos a la cátedra (REST o Redis), contando los reintentos (D-03) y, en una recuperación, los de cada paso. |
+| `ultimoIntento.mensaje` | texto | Motivo funcional, sin datos sensibles (D-11): el del error, o el de la discontinuidad si se recuperó bien; `null` si terminó bien sin recuperar. |
 
 Las fechas van en UTC, formato ISO 8601. Sin token o con un token inválido responde **401**, igual que el resto de `/api/**`.
