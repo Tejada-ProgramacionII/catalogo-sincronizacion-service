@@ -34,6 +34,17 @@ Requisitos: **Docker** (Docker Desktop en macOS/Windows) y **ZeroTier** conectad
 
 La imagen se compila en dos etapas (JDK para compilar, solo el JRE para correr) y corre con un usuario sin privilegios. Los tests no corren en el build de la imagen: los corre el CI. Los contenedores usan su propia red, `10.20.0.0/24`, para no chocar con la `172.17.x` de la cátedra.
 
+### Limitación conocida: Docker Desktop en macOS con ZeroTier
+
+En macOS, los contenedores no llegan a la cátedra por ZeroTier: las conexiones a `172.17.201.1` (8090, 6379 y 9094) responden `Connection refused`, aunque desde el Mac los tres puertos responden. Pasa desde cualquier red de Docker (también la `bridge` por defecto), con el `bip` de Docker fuera de `172.17.x` y con el permiso de **Red local** de Docker activado. Internet y el host (`host.docker.internal`) sí responden desde el contenedor. El servicio arranca igual y atiende la API con la copia local, pero la sincronización queda `CON_ERROR` (`CATEDRA_NO_DISPONIBLE`).
+
+Mientras tanto, en macOS se puede levantar solo la base con Docker y correr el servicio en el host, que sí llega a la cátedra:
+
+```bash
+docker compose up -d catalogo-db
+set -a && source .env && set +a && ./mvnw spring-boot:run
+```
+
 ## Base de datos y migraciones
 
 - Base local: PostgreSQL con Docker Compose (`docker compose up -d catalogo-db` para levantar solo la base y correr el servicio con `./mvnw spring-boot:run`).
