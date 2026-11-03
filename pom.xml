@@ -48,6 +48,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-restclient</artifactId>
         </dependency>
+        <!-- Cliente Redis para leer el catálogo que publica la cátedra -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <!-- Seguridad: valida el JWT de usuario que emite turnos (HS512) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -13,7 +13,7 @@ El servicio mantiene la **copia local** del catálogo de la cátedra (categoría
 | Actor | Tipo | Qué hace con el servicio |
 | --- | --- | --- |
 | **Usuario final** (desde la app KMP) | Principal | Busca y filtra profesionales. Consulta si el catálogo está al día. |
-| **Servicio de turnos** | Principal | Pide los datos vigentes de un profesional y su agenda semanal antes de construir disponibilidad o iniciar una reserva. Consulta si el catálogo está al día. |
+| **Servicio de turnos** | Principal | Pide los datos vigentes de un profesional y su agenda semanal antes de construir disponibilidad o iniciar una reserva. |
 | **Servicio de la cátedra** | De apoyo | Entrega el snapshot completo (REST), los cambios incrementales (Redis) y los avisos de nueva versión (Kafka). |
 
 Los procesos de sincronización no los inicia una persona: se disparan al arrancar el servicio, al recibir un aviso de nueva versión o al detectar que la copia local no se puede continuar.
@@ -38,7 +38,6 @@ flowchart LR
     usuario --> cu04
     usuario --> cu06
     turnos --> cu05
-    turnos --> cu06
     cu01 --- catedra
     cu02 --- catedra
     cu03 -.->|incluye| cu01
@@ -72,3 +71,4 @@ flowchart LR
 | D-10 | El estado de sincronización es uno de: **sin datos**, **al día**, **sincronizando** o **con error**. | El servicio debe informar el estado y los errores de sincronización (enunciado 4.1). |
 | D-11 | El último error se informa con un motivo funcional, **sin datos sensibles**; el detalle técnico queda en los logs. | Evitar exponer secretos o detalles internos en respuestas (enunciado 9). |
 | D-12 | Turnos **propaga el JWT del usuario** al consultar el catálogo, y el catálogo lo valida con el mismo secreto HS512 que usa turnos para emitirlo. | El catálogo igual tiene que validar el JWT del usuario porque la app KMP lo consulta directo (D-01); un JWT técnico propio entre servicios sería otra emisión de tokens sin beneficio. |
+| D-13 | El estado se calcula con la **última sincronización registrada**: si está en curso es *sincronizando*; si terminó mal, *con error*; si terminó bien (o no hay registro), *al día* o *sin datos* según haya versión aplicada. Al arrancar, una sincronización que quedó abierta se cierra como error. | El registro se persiste para que el último error sobreviva a un reinicio; una sincronización cortada por una caída no puede quedar *sincronizando* para siempre. |
