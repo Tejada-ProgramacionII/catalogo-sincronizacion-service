@@ -13,7 +13,7 @@ El servicio mantiene la **copia local** del catálogo de la cátedra (categoría
 | Actor | Tipo | Qué hace con el servicio |
 | --- | --- | --- |
 | **Usuario final** (desde la app KMP) | Principal | Busca y filtra profesionales. Consulta si el catálogo está al día. |
-| **Servicio de turnos** | Principal | Pide los datos vigentes de un profesional y su agenda semanal antes de construir disponibilidad o iniciar una reserva. Consulta si el catálogo está al día. |
+| **Servicio de turnos** | Principal | Pide los datos vigentes de un profesional y su agenda semanal antes de construir disponibilidad o iniciar una reserva. |
 | **Servicio de la cátedra** | De apoyo | Entrega el snapshot completo (REST), los cambios incrementales (Redis) y los avisos de nueva versión (Kafka). |
 
 Los procesos de sincronización no los inicia una persona: se disparan al arrancar el servicio, al recibir un aviso de nueva versión o al detectar que la copia local no se puede continuar.
@@ -38,7 +38,6 @@ flowchart LR
     usuario --> cu04
     usuario --> cu06
     turnos --> cu05
-    turnos --> cu06
     cu01 --- catedra
     cu02 --- catedra
     cu03 -.->|incluye| cu01
