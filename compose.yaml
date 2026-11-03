@@ -1,0 +1,48 @@
+# Servicio de catálogo con su base PostgreSQL. Los secretos de la cátedra llegan desde .env
+# (copiar .env.example). Los datos de la base se pueden sobrescribir con DB_NAME, DB_USERNAME,
+# DB_PASSWORD y DB_PORT; los valores por defecto coinciden con application.properties.
+services:
+  catalogo-db:
+    image: postgres:17
+    container_name: catalogo-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-catalogo}
+      POSTGRES_USER: ${DB_USERNAME:-catalogo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-catalogo}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - catalogo-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - catalogo
+
+  catalogo:
+    build: .
+    container_name: catalogo
+    depends_on:
+      catalogo-db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://catalogo-db:5432/${DB_NAME:-catalogo}
+      DB_USERNAME: ${DB_USERNAME:-catalogo}
+      DB_PASSWORD: ${DB_PASSWORD:-catalogo}
+    ports:
+      - "8080:8080"
+    networks:
+      - catalogo
+
+# Red propia fuera de 172.17.x, que es donde está la cátedra (ZeroTier).
+networks:
+  catalogo:
+    ipam:
+      config:
+        - subnet: 10.20.0.0/24
+
+volumes:
+  catalogo-db-data:

@@ -1,9 +1,53 @@
 # catalogo-sincronizacion-service
   Servicio de catálogo y sincronización — Spring Boot. Réplica local del catálogo de la cátedra con sincronización completa e incremental (REST + Redis + Kafka).
 
+## Levantar con Docker
+
+Requisitos: **Docker** (Docker Desktop en macOS/Windows) y **ZeroTier** conectado a la red de la cátedra. Sin ZeroTier el servicio arranca igual, pero la sincronización queda `CON_ERROR` porque no llega a la cátedra.
+
+1. Copiar el archivo de variables y completarlo con los valores reales de la cuenta técnica (ver [Integración con la cátedra](#integración-con-la-cátedra) y [Seguridad](#seguridad)). El `.env` no se commitea.
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Construir la imagen y levantar la base y el servicio:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   El servicio espera a que la base esté sana, aplica las migraciones y sincroniza con la cátedra. Queda en `http://localhost:8080` (Swagger en `/swagger-ui/index.html`).
+
+3. Ver los logs y el estado:
+
+   ```bash
+   docker compose logs -f catalogo
+   docker compose ps
+   ```
+
+4. Bajarlo (los datos quedan en el volumen `catalogo-db-data`; `docker compose down -v` también lo borra):
+
+   ```bash
+   docker compose down
+   ```
+
+La imagen se compila en dos etapas (JDK para compilar, solo el JRE para correr) y corre con un usuario sin privilegios. Los tests no corren en el build de la imagen: los corre el CI. Los contenedores usan su propia red, `10.20.0.0/24`, para no chocar con la `172.17.x` de la cátedra.
+
+### Relay en macOS
+
+En macOS con Docker Desktop, los contenedores no enrutan por la interfaz de ZeroTier (macOS devuelve no route to host); hace falta un relay local en el host hacia 172.17.201.1 (puertos 8090, 6379, 9094). En Linux no es necesario.
+
+El relay no forma parte del repositorio y se corre en el Mac **antes de `docker compose up`**. Hace dos cosas:
+
+1. Levanta `socat` en `127.0.0.1`, en los puertos 8090, 6379 y 9094, hacia los mismos puertos de `172.17.201.1`.
+2. Agrega en la VM de Docker una regla DNAT que manda el tráfico de `172.17.201.1` a `host.docker.internal`, es decir, a esos `socat`.
+
+Hay que repetirlo después de reiniciar Docker Desktop. Con el relay, el servicio en Docker conecta con REST, Redis y Kafka, y `GET /api/sincronizacion/estado` responde `AL_DIA`.
+
 ## Base de datos y migraciones
 
-- Base local: PostgreSQL con Docker Compose (`docker compose up -d`).
+- Base local: PostgreSQL con Docker Compose (`docker compose up -d catalogo-db` para levantar solo la base y correr el servicio con `./mvnw spring-boot:run`).
 - El esquema lo administra **Flyway**: al arrancar, el servicio aplica en orden las migraciones de `src/main/resources/db/migration` que todavía no corrieron y las registra en la tabla `flyway_schema_history`.
 - Las migraciones se nombran `V<número>__<descripción>.sql`. Una migración ya aplicada no se modifica: cada cambio va en un archivo nuevo.
 - Hibernate no crea tablas (`ddl-auto=validate`): solo verifica que las entidades coincidan con el esquema.
