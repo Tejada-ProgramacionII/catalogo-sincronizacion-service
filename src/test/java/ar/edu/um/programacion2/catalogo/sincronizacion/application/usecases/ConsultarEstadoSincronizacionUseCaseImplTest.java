@@ -18,6 +18,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSin
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.UltimaVerificacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +32,9 @@ class ConsultarEstadoSincronizacionUseCaseImplTest {
 
     @Mock
     private IntentoSincronizacionRepository intentoSincronizacionRepository;
+
+    @Mock
+    private UltimaVerificacionRepository ultimaVerificacionRepository;
 
     @InjectMocks
     private ConsultarEstadoSincronizacionUseCaseImpl useCase;
@@ -102,9 +106,33 @@ class ConsultarEstadoSincronizacionUseCaseImplTest {
         assertThat(useCase.consultarEstado().getEstado()).isEqualTo(EstadoSincronizacion.AL_DIA);
     }
 
+    @Test
+    void unaVerificacionSinPendientesPosteriorAlErrorVuelveAlDia() {
+        Instant verificada = INICIO.plusSeconds(60);
+        dado(VERSION, cerrado(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE), verificada);
+
+        ResumenSincronizacion resumen = useCase.consultarEstado();
+
+        assertThat(resumen.getEstado()).isEqualTo(EstadoSincronizacion.AL_DIA);
+        assertThat(resumen.getUltimaVerificacion()).isEqualTo(verificada);
+        assertThat(resumen.getUltimoIntento().getResultado()).isEqualTo(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE);
+    }
+
+    @Test
+    void unaVerificacionAnteriorAlErrorNoLoTapa() {
+        dado(VERSION, cerrado(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE), INICIO.minusSeconds(60));
+
+        assertThat(useCase.consultarEstado().getEstado()).isEqualTo(EstadoSincronizacion.CON_ERROR);
+    }
+
     private void dado(VersionAplicada version, IntentoSincronizacion ultimo) {
+        dado(version, ultimo, null);
+    }
+
+    private void dado(VersionAplicada version, IntentoSincronizacion ultimo, Instant verificacion) {
         when(versionAplicadaRepository.find()).thenReturn(Optional.ofNullable(version));
         when(intentoSincronizacionRepository.findUltimo()).thenReturn(Optional.ofNullable(ultimo));
+        when(ultimaVerificacionRepository.find()).thenReturn(Optional.ofNullable(verificacion));
     }
 
     private static IntentoSincronizacion cerrado(ResultadoSincronizacion resultado) {

@@ -20,6 +20,9 @@ El servicio necesita estas variables de entorno para arrancar; si falta alguna, 
 | `CATEDRA_REDIS_HOST` | Host del Redis de la cátedra, donde publica las versiones y los cambios del catálogo. |
 | `CATEDRA_REDIS_USERNAME` | Usuario de Redis de la integración (solo lectura en `catedra:sync:*`). |
 | `CATEDRA_REDIS_PASSWORD` | Clave de ese usuario. |
+| `CATEDRA_KAFKA_BOOTSTRAP_SERVERS` | Bootstrap servers del Kafka de la cátedra. |
+| `CATEDRA_KAFKA_CATALOG_TOPIC` | Topic de los avisos `CatalogUpdated` de la integración. |
+| `CATEDRA_KAFKA_CONSUMER_GROUP` | Consumer group de la integración. |
 
 Sus valores se reciben por otro canal y **no se publican** en el repositorio, en los logs ni en la documentación.
 
@@ -29,10 +32,21 @@ export CATEDRA_JWT=<jwt-tecnico>
 export CATEDRA_REDIS_HOST=<host-de-redis>
 export CATEDRA_REDIS_USERNAME=<usuario-de-redis>
 export CATEDRA_REDIS_PASSWORD=<clave-de-redis>
+export CATEDRA_KAFKA_BOOTSTRAP_SERVERS=<bootstrap-servers>
+export CATEDRA_KAFKA_CATALOG_TOPIC=<topic-del-catalogo>
+export CATEDRA_KAFKA_CONSUMER_GROUP=<consumer-group>
 ./mvnw spring-boot:run
 ```
 
 Los timeouts tienen valores por defecto (5 s de conexión y 30 s de lectura) y se pueden cambiar con `CATEDRA_CONNECT_TIMEOUT` y `CATEDRA_READ_TIMEOUT` (por ejemplo, `10s`). Redis usa el puerto 6379 y un timeout de 5 s, que se cambian con `CATEDRA_REDIS_PORT` y `CATEDRA_REDIS_TIMEOUT`. La conexión a Redis se abre recién en la primera lectura: si Redis no responde, el servicio arranca igual.
+
+### Sincronización
+
+- **Al arrancar**: sin copia local hace la sincronización completa (CU-01); con copia, verifica si hay versiones nuevas.
+- **Aviso `CatalogUpdated` por Kafka**: dispara la incremental (CU-02). Un aviso repetido (mismo `eventId`) o de una versión ya incorporada no tiene efectos; el offset se confirma después de procesarlo.
+- **Verificación periódica** cada 5 minutos (`CATEDRA_SINCRONIZACION_INTERVALO_VERIFICACION`, por ejemplo `1m`): compara la versión local con la publicada en Redis y recupera los avisos perdidos (D-07).
+
+Kafka solo avisa: los datos salen siempre de Redis, o de un snapshot si no se puede continuar desde la versión local (CU-03). Las sincronizaciones no se pisan: un aviso espera a la que está corriendo y una verificación periódica que encuentra otra en curso no hace nada.
 
 ## Seguridad
 
@@ -66,7 +80,7 @@ Informa en qué estado está la copia local ([CU-06](docs/casos-de-uso/CU-06-inf
 
 #### 200 OK
 
-Siempre responde 200, también sin datos. Al día:
+Siempre responde 200, también sin datos. Al día (la verificación periódica no encontró versiones pendientes):
 
 ```json
 {
@@ -80,7 +94,8 @@ Siempre responde 200, también sin datos. Al día:
     "resultado": "OK",
     "intentos": 1,
     "mensaje": null
-  }
+  },
+  "ultimaVerificacion": "2026-10-28T14:50:33.863013Z"
 }
 ```
 
@@ -90,17 +105,20 @@ Con error, conservando la copia anterior:
 {
   "estado": "CON_ERROR",
   "versionAplicada": 1,
-  "aplicadaEn": "2026-10-27T13:34:32.228095Z",
+  "aplicadaEn": "2026-10-27T21:37:37.530100Z",
   "ultimoIntento": {
-    "proceso": "COMPLETA",
-    "inicio": "2026-10-27T21:35:47.877111Z",
-    "fin": "2026-10-27T21:36:14.851805Z",
-    "resultado": "ERROR",
+    "proceso": "INCREMENTAL",
+    "inicio": "2026-10-28T14:51:38.497339Z",
+    "fin": "2026-10-28T14:51:38.939439Z",
+    "resultado": "RECHAZO",
     "intentos": 1,
-    "mensaje": "Interrumpida por un reinicio del servicio"
-  }
+    "mensaje": "La cátedra rechazó el pedido de la integración"
+  },
+  "ultimaVerificacion": "2026-10-28T14:51:13.068915Z"
 }
 ```
+
+Si después una verificación no encuentra versiones pendientes, vuelve a `AL_DIA` aunque el último intento siga siendo ese error (`"ultimaVerificacion": "2026-10-28T14:52:01.204379Z"`, posterior a su `fin`).
 
 | Campo | Tipo | Descripción |
 | --- | --- | --- |
@@ -112,5 +130,6 @@ Con error, conservando la copia anterior:
 | `ultimoIntento.resultado` | texto | `OK`, `CATEDRA_NO_DISPONIBLE`, `RECHAZO`, `DISCONTINUIDAD` (la recuperación tampoco pudo continuar, D-08) o `ERROR`; `null` mientras está en curso. |
 | `ultimoIntento.intentos` | número | Pedidos hechos a la cátedra (REST o Redis), contando los reintentos (D-03) y, en una recuperación, los de cada paso. |
 | `ultimoIntento.mensaje` | texto | Motivo funcional, sin datos sensibles (D-11): el del error, o el de la discontinuidad si se recuperó bien; `null` si terminó bien sin recuperar. |
+| `ultimaVerificacion` | fecha | Última vez que una verificación (al arrancar o periódica) comprobó contra Redis que no había versiones pendientes; `null` si todavía no hubo ninguna. Esas verificaciones no registran un intento. |
 
 Las fechas van en UTC, formato ISO 8601. Sin token o con un token inválido responde **401**, igual que el resto de `/api/**`.

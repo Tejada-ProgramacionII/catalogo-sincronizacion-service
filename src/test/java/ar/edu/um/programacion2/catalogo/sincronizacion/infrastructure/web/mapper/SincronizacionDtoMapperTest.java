@@ -30,6 +30,7 @@ class SincronizacionDtoMapperTest {
                         .id(3L).proceso(ProcesoSincronizacion.INCREMENTAL).inicio(INICIO).fin(INICIO.plusSeconds(5))
                         .resultado(ResultadoSincronizacion.RECHAZO).intentos(1)
                         .mensaje("La cátedra rechazó el pedido del snapshot").build())
+                .ultimaVerificacion(INICIO.plusSeconds(60))
                 .build();
 
         EstadoSincronizacionResponse response = mapper.toEstadoResponse(resumen);
@@ -37,6 +38,7 @@ class SincronizacionDtoMapperTest {
         assertThat(response.getEstado()).isEqualTo(EstadoSincronizacion.CON_ERROR);
         assertThat(response.getVersionAplicada()).isEqualTo(7L);
         assertThat(response.getAplicadaEn()).isEqualTo(APLICADA_EN);
+        assertThat(response.getUltimaVerificacion()).isEqualTo(INICIO.plusSeconds(60));
         assertThat(response.getUltimoIntento().getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
         assertThat(response.getUltimoIntento().getInicio()).isEqualTo(INICIO);
         assertThat(response.getUltimoIntento().getFin()).isEqualTo(INICIO.plusSeconds(5));

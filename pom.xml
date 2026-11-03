@@ -53,6 +53,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <!-- Consumidor de los avisos CatalogUpdated que publica la cátedra -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
         <!-- Seguridad: valida el JWT de usuario que emite turnos (HS512) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

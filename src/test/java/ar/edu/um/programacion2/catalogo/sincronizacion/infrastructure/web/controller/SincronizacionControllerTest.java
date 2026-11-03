@@ -49,6 +49,7 @@ class SincronizacionControllerTest {
                 .versionAplicada(VersionAplicada.builder().version(7L).aplicadaEn(inicio.plusSeconds(4)).build())
                 .ultimoIntento(IntentoSincronizacion.builder().id(3L).proceso(ProcesoSincronizacion.COMPLETA).inicio(inicio).fin(inicio.plusSeconds(5))
                         .resultado(ResultadoSincronizacion.OK).intentos(2).versionAplicada(7L).build())
+                .ultimaVerificacion(inicio.plusSeconds(300))
                 .build());
 
         mockMvc.perform(get(URL))
@@ -61,7 +62,8 @@ class SincronizacionControllerTest {
                 .andExpect(jsonPath("$.ultimoIntento.fin").value("2026-10-27T10:00:05Z"))
                 .andExpect(jsonPath("$.ultimoIntento.resultado").value("OK"))
                 .andExpect(jsonPath("$.ultimoIntento.intentos").value(2))
-                .andExpect(jsonPath("$.ultimoIntento.id").doesNotExist());
+                .andExpect(jsonPath("$.ultimoIntento.id").doesNotExist())
+                .andExpect(jsonPath("$.ultimaVerificacion").value("2026-10-27T10:05:00Z"));
     }
 
     @Test
