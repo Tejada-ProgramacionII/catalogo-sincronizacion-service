@@ -1,5 +1,7 @@
 package ar.edu.um.programacion2.catalogo.sincronizacion.domain.model;
 
+import java.time.Instant;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,4 +17,5 @@ public class ResumenSincronizacion {
     private EstadoSincronizacion estado;
     private VersionAplicada versionAplicada;
     private IntentoSincronizacion ultimoIntento;
+    private Instant ultimaVerificacion;
 }

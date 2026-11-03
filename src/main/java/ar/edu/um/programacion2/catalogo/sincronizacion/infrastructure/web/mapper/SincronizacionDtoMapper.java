@@ -21,6 +21,7 @@ public class SincronizacionDtoMapper {
                 .versionAplicada(version == null ? null : version.getVersion())
                 .aplicadaEn(version == null ? null : version.getAplicadaEn())
                 .ultimoIntento(toIntentoResponse(resumen.getUltimoIntento()))
+                .ultimaVerificacion(resumen.getUltimaVerificacion())
                 .build();
     }
 
@@ -29,6 +30,7 @@ public class SincronizacionDtoMapper {
             return null;
         }
         return IntentoSincronizacionResponse.builder()
+                .proceso(intento.getProceso())
                 .inicio(intento.getInicio())
                 .fin(intento.getFin())
                 .resultado(intento.getResultado())
