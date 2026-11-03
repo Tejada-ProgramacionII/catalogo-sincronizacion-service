@@ -24,6 +24,7 @@ public class IntentoSincronizacionEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String proceso;
     private Instant inicio;
     private Instant fin;
     private String resultado;

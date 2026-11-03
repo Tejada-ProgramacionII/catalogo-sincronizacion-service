@@ -3,6 +3,7 @@ package ar.edu.um.programacion2.catalogo.sincronizacion.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -17,6 +18,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -26,13 +28,16 @@ import org.springframework.dao.DataIntegrityViolationException;
 import ar.edu.um.programacion2.catalogo.config.SincronizacionProperties;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraNoDisponibleException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.CatedraRechazoException;
+import ar.edu.um.programacion2.catalogo.sincronizacion.application.exception.DiscontinuidadException;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.EstadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.ConsultarEstadoSincronizacionUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoCompletoUseCase;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.in.SincronizarCatalogoIncrementalUseCase;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.IntentoSincronizacionRepository;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionAplicadaRepository;
 
@@ -40,11 +45,17 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.domain.ports.out.VersionA
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SincronizacionServiceTest {
 
+    private static final DiscontinuidadException DISCONTINUIDAD =
+            new DiscontinuidadException("La versión local 5 es anterior a la más antigua disponible (6)");
+
     private static final CatedraNoDisponibleException NO_DISPONIBLE =
             new CatedraNoDisponibleException("La cátedra respondió con un error (HTTP 503)", null);
 
     @Mock
     private SincronizarCatalogoCompletoUseCase sincronizarCatalogoCompletoUseCase;
+
+    @Mock
+    private SincronizarCatalogoIncrementalUseCase sincronizarCatalogoIncrementalUseCase;
 
     @Mock
     private VersionAplicadaRepository versionAplicadaRepository;
@@ -67,7 +78,8 @@ class SincronizacionServiceTest {
         sincronizacionProperties = new SincronizacionProperties();
         sincronizacionProperties.setMaxIntentos(3);
         sincronizacionProperties.setEsperaEntreIntentos(Duration.ZERO);
-        service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizacionProperties,
+        service = new SincronizacionService(sincronizarCatalogoCompletoUseCase, sincronizarCatalogoIncrementalUseCase,
+                sincronizacionProperties,
                 versionAplicadaRepository, intentoSincronizacionRepository, consultarEstadoSincronizacionUseCase);
         when(intentoSincronizacionRepository.save(any())).thenAnswer(invocacion -> {
             IntentoSincronizacion intento = invocacion.getArgument(0);
@@ -98,6 +110,7 @@ class SincronizacionServiceTest {
         });
         IntentoSincronizacion fin = ultimoGuardado();
         assertThat(fin.getId()).isEqualTo(1L);
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.COMPLETA);
         assertThat(fin.getFin()).isNotNull();
         assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.OK);
         assertThat(fin.getVersionAplicada()).isEqualTo(7L);
@@ -221,6 +234,126 @@ class SincronizacionServiceTest {
         assertThat(service.consultarEstado()).isSameAs(resumen);
     }
 
+    @Test
+    void laIncrementalRegistraElProcesoYLaVersionAlcanzada() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenReturn(version(9L));
+
+        assertThat(service.sincronizarIncremental()).hasValueSatisfying(v -> assertThat(v.getVersion()).isEqualTo(9L));
+
+        IntentoSincronizacion fin = ultimoGuardado();
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
+        assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.OK);
+        assertThat(fin.getVersionAplicada()).isEqualTo(9L);
+        assertThat(fin.getIntentos()).isEqualTo(1);
+        assertThat(fin.getMensaje()).isNull();
+        verify(sincronizarCatalogoCompletoUseCase, never()).sincronizar();
+    }
+
+    @Test
+    void sinCopiaLocalLaIncrementalHaceLaCompleta() {
+        when(versionAplicadaRepository.find()).thenReturn(Optional.empty());
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenReturn(version(1L));
+
+        service.sincronizarIncremental();
+
+        verify(sincronizarCatalogoIncrementalUseCase, never()).sincronizar();
+        assertThat(ultimoGuardado().getProceso()).isEqualTo(ProcesoSincronizacion.COMPLETA);
+        assertThat(ultimoGuardado().getResultado()).isEqualTo(ResultadoSincronizacion.OK);
+    }
+
+    @Test
+    void siRedisNoRespondeLaIncrementalReintentaYRegistraQueNoRespondio() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenThrow(NO_DISPONIBLE);
+
+        assertThat(service.sincronizarIncremental()).isEmpty();
+
+        verify(sincronizarCatalogoIncrementalUseCase, times(3)).sincronizar();
+        IntentoSincronizacion fin = ultimoGuardado();
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
+        assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE);
+        assertThat(fin.getMensaje()).isEqualTo("La cátedra no respondió después de 3 intentos");
+    }
+
+    @Test
+    void siRedisRechazaLasCredencialesLaIncrementalNoReintenta() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar())
+                .thenThrow(new CatedraRechazoException("Redis rechazó las credenciales", null));
+
+        assertThat(service.sincronizarIncremental()).isEmpty();
+
+        verify(sincronizarCatalogoIncrementalUseCase).sincronizar();
+        assertThat(ultimoGuardado().getResultado()).isEqualTo(ResultadoSincronizacion.RECHAZO);
+    }
+
+    @Test
+    void anteUnaDiscontinuidadRecuperaConUnSnapshotYSigueConLaIncremental() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar())
+                .thenThrow(DISCONTINUIDAD)
+                .thenReturn(version(8L));
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenReturn(version(7L));
+
+        assertThat(service.sincronizarIncremental()).hasValueSatisfying(v -> assertThat(v.getVersion()).isEqualTo(8L));
+
+        InOrder orden = inOrder(sincronizarCatalogoIncrementalUseCase, sincronizarCatalogoCompletoUseCase);
+        orden.verify(sincronizarCatalogoIncrementalUseCase).sincronizar();
+        orden.verify(sincronizarCatalogoCompletoUseCase).sincronizar();
+        orden.verify(sincronizarCatalogoIncrementalUseCase).sincronizar();
+        IntentoSincronizacion fin = ultimoGuardado();
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.RECUPERACION);
+        assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.OK);
+        assertThat(fin.getVersionAplicada()).isEqualTo(8L);
+        assertThat(fin.getIntentos()).isEqualTo(3);
+        assertThat(fin.getMensaje()).isEqualTo(DISCONTINUIDAD.getMessage());
+    }
+
+    @Test
+    void siVuelveAHaberDiscontinuidadDespuesDelSnapshotNoReconstruyeOtraVez() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar())
+                .thenThrow(DISCONTINUIDAD)
+                .thenThrow(new DiscontinuidadException("Faltan los cambios de la versión 8"));
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenReturn(version(7L));
+
+        assertThat(service.sincronizarIncremental()).isEmpty();
+
+        // D-08: una sola reconstrucción por disparador.
+        verify(sincronizarCatalogoCompletoUseCase, times(1)).sincronizar();
+        verify(sincronizarCatalogoIncrementalUseCase, times(2)).sincronizar();
+        IntentoSincronizacion fin = ultimoGuardado();
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.RECUPERACION);
+        assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.DISCONTINUIDAD);
+        assertThat(fin.getVersionAplicada()).isEqualTo(7L);
+        assertThat(fin.getMensaje()).isEqualTo("Faltan los cambios de la versión 8");
+    }
+
+    @Test
+    void siFallaElSnapshotDeLaRecuperacionNoSigueConLaIncremental() {
+        hayCopiaLocal();
+        when(sincronizarCatalogoIncrementalUseCase.sincronizar()).thenThrow(DISCONTINUIDAD);
+        when(sincronizarCatalogoCompletoUseCase.sincronizar()).thenThrow(NO_DISPONIBLE);
+
+        assertThat(service.sincronizarIncremental()).isEmpty();
+
+        verify(sincronizarCatalogoCompletoUseCase, times(3)).sincronizar();
+        verify(sincronizarCatalogoIncrementalUseCase, times(1)).sincronizar();
+        IntentoSincronizacion fin = ultimoGuardado();
+        assertThat(fin.getProceso()).isEqualTo(ProcesoSincronizacion.RECUPERACION);
+        assertThat(fin.getResultado()).isEqualTo(ResultadoSincronizacion.CATEDRA_NO_DISPONIBLE);
+        assertThat(fin.getVersionAplicada()).isNull();
+    }
+
+    private void hayCopiaLocal() {
+        when(versionAplicadaRepository.find()).thenReturn(Optional.of(version(5L)));
+    }
+
+    private static VersionAplicada version(Long numero) {
+        return VersionAplicada.builder().version(numero).aplicadaEn(Instant.now()).build();
+    }
+
     private IntentoSincronizacion ultimoGuardado() {
         return guardados.get(guardados.size() - 1);
     }
@@ -228,6 +361,7 @@ class SincronizacionServiceTest {
     private static IntentoSincronizacion copia(IntentoSincronizacion intento) {
         return IntentoSincronizacion.builder()
                 .id(intento.getId())
+                .proceso(intento.getProceso())
                 .inicio(intento.getInicio())
                 .fin(intento.getFin())
                 .resultado(intento.getResultado())

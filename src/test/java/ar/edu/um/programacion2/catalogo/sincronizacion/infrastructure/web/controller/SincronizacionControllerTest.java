@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import ar.edu.um.programacion2.catalogo.sincronizacion.application.service.SincronizacionService;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.EstadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResumenSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.VersionAplicada;
@@ -46,7 +47,7 @@ class SincronizacionControllerTest {
         when(sincronizacionService.consultarEstado()).thenReturn(ResumenSincronizacion.builder()
                 .estado(EstadoSincronizacion.AL_DIA)
                 .versionAplicada(VersionAplicada.builder().version(7L).aplicadaEn(inicio.plusSeconds(4)).build())
-                .ultimoIntento(IntentoSincronizacion.builder().id(3L).inicio(inicio).fin(inicio.plusSeconds(5))
+                .ultimoIntento(IntentoSincronizacion.builder().id(3L).proceso(ProcesoSincronizacion.COMPLETA).inicio(inicio).fin(inicio.plusSeconds(5))
                         .resultado(ResultadoSincronizacion.OK).intentos(2).versionAplicada(7L).build())
                 .build());
 
@@ -55,6 +56,7 @@ class SincronizacionControllerTest {
                 .andExpect(jsonPath("$.estado").value("AL_DIA"))
                 .andExpect(jsonPath("$.versionAplicada").value(7))
                 .andExpect(jsonPath("$.aplicadaEn").value("2026-10-27T10:00:04Z"))
+                .andExpect(jsonPath("$.ultimoIntento.proceso").value("COMPLETA"))
                 .andExpect(jsonPath("$.ultimoIntento.inicio").value("2026-10-27T10:00:00Z"))
                 .andExpect(jsonPath("$.ultimoIntento.fin").value("2026-10-27T10:00:05Z"))
                 .andExpect(jsonPath("$.ultimoIntento.resultado").value("OK"))

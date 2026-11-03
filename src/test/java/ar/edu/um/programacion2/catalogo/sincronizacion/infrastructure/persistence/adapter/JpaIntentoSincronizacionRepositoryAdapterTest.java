@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.IntentoSincronizacion;
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 
 @SpringBootTest
@@ -23,7 +24,8 @@ class JpaIntentoSincronizacionRepositoryAdapterTest {
 
     @Test
     void saveAsignaElIdYActualizaElMismoIntento() {
-        IntentoSincronizacion abierto = adapter.save(IntentoSincronizacion.builder().inicio(INICIO).build());
+        IntentoSincronizacion abierto = adapter.save(IntentoSincronizacion.builder()
+                .proceso(ProcesoSincronizacion.INCREMENTAL).inicio(INICIO).build());
 
         abierto.setFin(INICIO.plusSeconds(5));
         abierto.setResultado(ResultadoSincronizacion.OK);
@@ -35,6 +37,7 @@ class JpaIntentoSincronizacionRepositoryAdapterTest {
         assertThat(adapter.findUltimo()).hasValueSatisfying(ultimo -> {
             assertThat(ultimo.getResultado()).isEqualTo(ResultadoSincronizacion.OK);
             assertThat(ultimo.getVersionAplicada()).isEqualTo(7L);
+            assertThat(ultimo.getProceso()).isEqualTo(ProcesoSincronizacion.INCREMENTAL);
         });
     }
 
@@ -55,13 +58,15 @@ class JpaIntentoSincronizacionRepositoryAdapterTest {
     @Test
     void findAbiertosDevuelveSoloLosQueNoTerminaron() {
         adapter.save(cerrado(ResultadoSincronizacion.OK));
-        IntentoSincronizacion abierto = adapter.save(IntentoSincronizacion.builder().inicio(INICIO).build());
+        IntentoSincronizacion abierto = adapter.save(IntentoSincronizacion.builder()
+                .proceso(ProcesoSincronizacion.INCREMENTAL).inicio(INICIO).build());
 
         assertThat(adapter.findAbiertos()).extracting(IntentoSincronizacion::getId).containsExactly(abierto.getId());
     }
 
     private static IntentoSincronizacion cerrado(ResultadoSincronizacion resultado) {
         return IntentoSincronizacion.builder()
-                .inicio(INICIO).fin(INICIO.plusSeconds(5)).resultado(resultado).intentos(1).build();
+                .proceso(ProcesoSincronizacion.COMPLETA).inicio(INICIO).fin(INICIO.plusSeconds(5))
+                .resultado(resultado).intentos(1).build();
     }
 }

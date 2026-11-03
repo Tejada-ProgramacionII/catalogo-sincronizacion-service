@@ -2,6 +2,7 @@ package ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.web.dto;
 
 import java.time.Instant;
 
+import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ProcesoSincronizacion;
 import ar.edu.um.programacion2.catalogo.sincronizacion.domain.model.ResultadoSincronizacion;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,6 +16,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class IntentoSincronizacionResponse {
+    private ProcesoSincronizacion proceso;
     private Instant inicio;
     private Instant fin;
     private ResultadoSincronizacion resultado;
