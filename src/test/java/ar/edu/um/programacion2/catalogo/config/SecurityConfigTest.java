@@ -89,6 +89,11 @@ class SecurityConfigTest {
     }
 
     @Test
+    void elEstadoDeLaSincronizacionSinTokenResponde401() throws Exception {
+        mockMvc.perform(get("/api/sincronizacion/estado")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void conUnTokenValidoResponde200() throws Exception {
         when(profesionalService.buscarProfesionales(any(), anyInt(), anyInt()))
                 .thenReturn(Pagina.<Profesional>builder().contenido(List.of()).numero(0).tamanio(20).build());

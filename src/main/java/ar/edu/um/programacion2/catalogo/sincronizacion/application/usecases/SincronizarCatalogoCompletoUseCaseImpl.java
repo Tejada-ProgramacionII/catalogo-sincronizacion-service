@@ -38,9 +38,11 @@ public class SincronizarCatalogoCompletoUseCaseImpl implements SincronizarCatalo
         snapshot.getProfesionales().forEach(profesionalRepository::save);
         snapshot.getHorarios().forEach(horarioSemanalRepository::save);
 
-        return versionAplicadaRepository.save(VersionAplicada.builder()
+        VersionAplicada aplicada = VersionAplicada.builder()
                 .version(snapshot.getVersion())
                 .aplicadaEn(Instant.now())
-                .build());
+                .build();
+        versionAplicadaRepository.save(aplicada);
+        return aplicada;
     }
 }

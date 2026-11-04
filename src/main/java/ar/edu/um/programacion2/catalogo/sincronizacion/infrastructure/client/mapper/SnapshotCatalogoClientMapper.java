@@ -11,6 +11,7 @@ import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.dto
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.dto.ProfesionalCatedraResponse;
 import ar.edu.um.programacion2.catalogo.sincronizacion.infrastructure.client.dto.SnapshotCatalogoResponse;
 
+// Traduce el JSON de la cátedra al dominio: lo usan el snapshot REST y los Hashes de Redis.
 @Component
 public class SnapshotCatalogoClientMapper {
 
@@ -27,7 +28,7 @@ public class SnapshotCatalogoClientMapper {
                 .build();
     }
 
-    private Categoria toCategoria(CategoriaCatedraResponse response) {
+    public Categoria toCategoria(CategoriaCatedraResponse response) {
         return Categoria.builder()
                 .id(response.getId())
                 .nombre(response.getName())
@@ -38,7 +39,7 @@ public class SnapshotCatalogoClientMapper {
                 .build();
     }
 
-    private Profesional toProfesional(ProfesionalCatedraResponse response) {
+    public Profesional toProfesional(ProfesionalCatedraResponse response) {
         return Profesional.builder()
                 .id(response.getId())
                 .categoriaId(response.getCategoryId())
@@ -50,7 +51,7 @@ public class SnapshotCatalogoClientMapper {
                 .build();
     }
 
-    private HorarioSemanal toHorario(HorarioSemanalCatedraResponse response) {
+    public HorarioSemanal toHorario(HorarioSemanalCatedraResponse response) {
         return HorarioSemanal.builder()
                 .id(response.getId())
                 .profesionalId(response.getProfessionalId())
